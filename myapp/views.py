@@ -35,7 +35,8 @@ spell=Speller(lang='en')
 
 
 
-url="http://127.0.0.1:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.171.134.22:8000/static/media/"
 
 # Create your views here.
 
@@ -271,7 +272,7 @@ class prediction(APIView):
         else:
             response_data = {"Message":"Data Not Found"}
             
-        return Response(response_data)
+        return Response({"data":response_data,"code":200})
     
 class GetUserHistory(APIView):
     authentication_classes=[JWTAuthentication]

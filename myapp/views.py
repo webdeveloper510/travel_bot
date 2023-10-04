@@ -60,7 +60,6 @@ class UserRegistrationView(APIView):
 # Api for user login
 class UserLoginView(APIView):
     renderer_classes = [UserRenderer]
-    permission_classes=[AllowAny]
     def post(self, request, format=None):
         serializer = UserLoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -69,7 +68,8 @@ class UserLoginView(APIView):
         user = authenticate(email=email, password=password)
         if user is not None:
             token = get_tokens_for_user(user)
-            return Response({'token':token, 'msg':'Login Success'}, status=status.HTTP_200_OK)
+            is_admin = user.is_staff
+            return Response({'token':token, "is_admin":is_admin,'msg':'Login Success'}, status=status.HTTP_200_OK)
         else:
             return Response({'errors':{'non_field_errors':['Email or Password is not Valid']}}, status=status.HTTP_404_NOT_FOUND)
   
@@ -104,32 +104,38 @@ class UploadCsv(APIView):
             return Response({"status": status.HTTP_404_NOT_FOUND, "message": "CSV Not Found"})
         
         input_csv = request.FILES['csv_file']
-        fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
+        
+        if not CsvFileData.objects.filter(csvname=input_csv).exists():
+            fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
+            serializer = CsvFileDataSerializer(fileupload)
+            full_url = urljoin(url, str(fileupload.csvfile.name))
+            fileupload.csvfile = full_url
+            fileupload.save()
 
-        serializer = CsvFileDataSerializer(fileupload)
+            try:
+                data = pd.read_csv(fileupload.csvfile.name)
+                
+                expected_columns = ["question", "answer", "label"]
+                
+                # Check if the CSV has the expected columns
+                if not all(col in data.columns for col in expected_columns):
+                    return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'CSV format is not as expected'})
 
-        full_url = urljoin(url, str(fileupload.csvfile.name))
-        fileupload.csvfile = full_url
-        fileupload.save()
+                for index, row in data.iterrows():
+                    questions = row["question"]
+                    answers = row["answer"]
+                    label = row['label']
+                    if not TravelBotData.objects.filter(question=questions , answer=answers).exists():
+                        dataload = TravelBotData.objects.create(question=questions, answer=answers, topic_name=label)
+                        dataload.save()
+                return Response({'message': "File uploaded and data saved successfully"})
 
-        try:
-            data = pd.read_csv(fileupload.csvfile.name)
-
-            for index, row in data.iterrows():
-                questions = row["question"]
-                answers = row["answer"]
-                label = row['label']
-                if not TravelBotData.objects.filter(question=questions , answer=answers).exists():
-                    dataload = TravelBotData.objects.create(question=questions, answer=answers, topic_name=label)
-                    dataload.save()
-            return Response({'message': "File uploaded and data saved successfully"})
-
-        except Exception as e:
-            return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
+            except Exception as e:
+                return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
+        return Response({'message': "File uploaded and data saved successfully"})
         
 # Api for train model  
 class TrainModel(APIView):
-    permission_classes=[IsAuthenticated]
     authentication_classes=[JWTAuthentication]
     def clean_text(self,text):
         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
@@ -199,7 +205,6 @@ class TrainModel(APIView):
 
 # Api for predict Answer
 class prediction(APIView):
-    permission_classes=[IsAuthenticated]
     authentication_classes=[JWTAuthentication]
     model_path=os.getcwd()+"/saved_model/classification_model.json"
     model_weight_path=os.getcwd()+"/saved_model/classification_model_weights.h5"
@@ -276,9 +281,14 @@ class prediction(APIView):
     
 class GetUserHistory(APIView):
     authentication_classes=[JWTAuthentication]
-    permission_classes=[IsAuthenticated]
     def get(self,request):
         
         history=UserActivity.objects.filter(user_id=request.user.id).values()
         print(history)
+        return Response({"data":history,"code":200})
+    
+class GetAlluploadedcsv(APIView):
+    authentication_classes=[JWTAuthentication]
+    def get(self,request):
+        history=CsvFileData.objects.all().values().order_by("id")
         return Response({"data":history,"code":200})

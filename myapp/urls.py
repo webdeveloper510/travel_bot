@@ -15,6 +15,7 @@ urlpatterns = [
     path('trainmodel/', TrainModel.as_view(),name='trainmodel'),
     path('prediction/', prediction.as_view(),name='prediction'),
     path('userhistory/', GetUserHistory.as_view(),name='userhistory'),
+     path('csvfilehistory/', GetAlluploadedcsv.as_view(),name='csvfilehistory'),
 
 
 ]

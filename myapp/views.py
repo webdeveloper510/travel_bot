@@ -104,35 +104,32 @@ class UploadCsv(APIView):
             return Response({"status": status.HTTP_404_NOT_FOUND, "message": "CSV Not Found"})
         
         input_csv = request.FILES['csv_file']
-        
-        if not CsvFileData.objects.filter(csvname=input_csv).exists():
-            fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
-            serializer = CsvFileDataSerializer(fileupload)
-            full_url = urljoin(url, str(fileupload.csvfile.name))
-            fileupload.csvfile = full_url
-            fileupload.save()
-
-            try:
-                data = pd.read_csv(fileupload.csvfile.name)
+        try:
+            data = pd.read_csv(input_csv)
+            expected_columns = ["question", "answer", "label"]
+            
+            # Check if the CSV has the expected columns
+            if not all(col in data.columns for col in expected_columns):
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'CSV format is not as expected'})
+            
+            if not CsvFileData.objects.filter(csvname=input_csv).exists():
+                fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
+                serializer = CsvFileDataSerializer(fileupload)
+                full_url = urljoin(url, str(fileupload.csvfile.name))
+                fileupload.csvfile = full_url
+                fileupload.save()
                 
-                expected_columns = ["question", "answer", "label"]
-                
-                # Check if the CSV has the expected columns
-                if not all(col in data.columns for col in expected_columns):
-                    return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'CSV format is not as expected'})
+            for index, row in data.iterrows():
+                questions = row["question"]
+                answers = row["answer"]
+                label = row['label']
+                if not TravelBotData.objects.filter(question=questions , answer=answers).exists():
+                    dataload = TravelBotData.objects.create(question=questions, answer=answers, topic_name=label)
+                    dataload.save()
+            return Response({'message': "File uploaded and data saved successfully"})
 
-                for index, row in data.iterrows():
-                    questions = row["question"]
-                    answers = row["answer"]
-                    label = row['label']
-                    if not TravelBotData.objects.filter(question=questions , answer=answers).exists():
-                        dataload = TravelBotData.objects.create(question=questions, answer=answers, topic_name=label)
-                        dataload.save()
-                return Response({'message': "File uploaded and data saved successfully"})
-
-            except Exception as e:
-                return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
-        return Response({'message': "File uploaded and data saved successfully"})
+        except Exception as e:
+            return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
         
 # Api for train model  
 class TrainModel(APIView):

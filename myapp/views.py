@@ -21,7 +21,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
 from fuzzywuzzy import fuzz
 from django.utils import timezone
-
+from datetime import datetime
 import pickle
 import json
 import os
@@ -94,9 +94,15 @@ class UserList(APIView):
     authentication_classes=[JWTAuthentication]
     def get(self,request,format=None):
         users = User.objects.all().order_by('id').values()
-        return Response({"data":users, "code":200})
+        response=[]
+        for user in users:
+            created_at=user.get("created_at")
+            if created_at:
+                user["created_at"]=created_at.strftime('%Y-%m-%d')
+            response.append(user)
+        return Response({"data":response, "code":200})
         
-    
+
 # Api for upload csv    
 class UploadCsv(APIView):
     def post(self, request):

@@ -206,6 +206,27 @@ class TrainModel(APIView):
             pickle.dump(cluster_label, file)
         return Response({'message':"Model Train Successfully"})
 
+
+details_dict={
+    "hi":"Hello",
+    "hey" :"Hi",
+    "is anyone there?" :"Hi there ",
+    "is anyone there" :"Hi there ",
+    "hello" :"Hi",
+    "how are you" :"I am AI bot. I am always remain well.",
+    "bye":"See you later",
+    "see you later": "Have a nice day",
+    "goodbye":"Bye! Come back again",
+    "thanks":"Happy to help!",
+    "thank you":"My pleasure",
+    "that's helpful":"Any time!",
+    "thanks for the help":"You're most welcome!",
+    "who are you?":" your bot assistant",
+    "could you help me":"Tell me how can assist you",
+    "can you help me":"Tell me how can assist you",
+    "i need a help":"Tell me your problem to assist you",
+    "support me please":"Yes Sure, How can I support you"
+}
 # Api for predict Answer
 class prediction(APIView):
     authentication_classes=[JWTAuthentication]
@@ -247,6 +268,7 @@ class prediction(APIView):
         # Take user input and preprocess as input
         user_input=request.data.get("query")
         input=spell(user_input)
+        value_found=details_dict.get(input.lower().strip())
         clean_user_input=self.clean_func.clean_text(input)
         new_input = tokenizer.texts_to_sequences([clean_user_input])
         new_input = pad_sequences(new_input, maxlen=MAX_SEQUENCE_LENGTH) 
@@ -268,20 +290,22 @@ class prediction(APIView):
         similarity_percentage = similarity_scores[max_sim_index] * 100
         if (similarity_percentage)>=65:
             answer = filter_data[max_sim_index]['answer'] 
-            
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=input,answer=answer)
             conversation.save()
             response_data = {
                 "Question":input,
                 "Label": result,
                 "Answer": answer,
-               
+            
                 "AnswerSource":"This Response Done From Database"}
+        elif value_found:
+                response_data = {"Question":input,"Answer": value_found}
+                return Response({"data":response_data,"code":200})
         else:
             response_data = {"Message":"Data Not Found"}
             
         return Response({"data":response_data,"code":200})
-    
+        
 class GetUserHistory(APIView):
     authentication_classes=[JWTAuthentication]
     def get(self,request):

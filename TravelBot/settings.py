@@ -146,7 +146,7 @@ STATICFILES_DIRS = [
 STATIC_URL = '/static/'
 MEDIA_ROOT = BASE_DIR /"static/media"
 MEDIA_URL = "/media/"
-# BASE_URL='http://127.0.0.1:8000/static'
+# BASE_URL='http://127.0.0.1:8000//static'
 BASE_URL='http://16.171.134.22:8000/static'
 
 # Default primary key field type

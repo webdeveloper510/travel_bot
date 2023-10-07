@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.contrib.auth.hashers import make_password
 from .models import *
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -33,14 +34,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     model = User
     fields = ['id', 'email', 'firstname','lastname']
     
-# class TopicSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model= Topic
-#         fields = '__all__'
-           
-#     def create(self, validate_data):
-#         return Topic.objects.create(**validate_data)
-
 
 
 class TravelBotDataSerializer(serializers.ModelSerializer):
@@ -58,3 +51,38 @@ class CsvFileDataSerializer(serializers.ModelSerializer):
         
     def create (self,validate_data):
         return CsvFileData.objects.create(**validate_data)
+    
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True,required=False)
+    
+    # for password encrypting format 
+    def update(self, instance, validated_data):
+        password = validated_data.get('password',None)
+        if password:
+            instance.password = validated_data.get('password', instance.password)
+            validated_data['password'] = make_password(instance.password) 
+        else:
+            validated_data.pop('password', None)
+        
+        return super(UpdateProfileSerializer , self).update(instance,validated_data)
+
+    class Meta:
+        model=User
+        fields=["id","firstname","lastname","email","password"]
+        
+        extra_kwargs = {
+        'firstname': {'required': False},
+        'lastname':{'required': False},
+        'email': {'required': False},
+        'password': {'required': False},
+        
+        }
+        def validate_password(self,password):
+        
+            if len(password)< 8:
+                raise serializers.ValidationError("Password must be more than 8 character.")
+            if not any(char.isdigit() for char in password):
+                raise serializers.ValidationError('Password must contain at least one digit.')
+            return password
+            
+    

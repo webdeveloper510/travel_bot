@@ -75,11 +75,14 @@ class UserLoginView(APIView):
   
 # Api for user profile
 class UserProfileView(APIView):
-  renderer_classes = [UserRenderer]
-  permission_classes = [IsAuthenticated]
-  def get(self, request, format=None):
-    serializer = UserProfileSerializer(request.user)
-    return Response({"data":serializer.data, "status":status.HTTP_200_OK})
+    renderer_classes = [UserRenderer]
+    authentication_classes=[JWTAuthentication]
+    def get(self, request, format=None):
+        try:
+            serializer = UserProfileSerializer(request.user)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Api for user logout
 class LogoutUser(APIView):
@@ -305,7 +308,8 @@ class prediction(APIView):
             response_data = {"Message":"Data Not Found"}
             
         return Response({"data":response_data,"code":200})
-        
+     
+# Api for get user history   
 class GetUserHistory(APIView):
     authentication_classes=[JWTAuthentication]
     def get(self,request):
@@ -314,8 +318,39 @@ class GetUserHistory(APIView):
         print(history)
         return Response({"data":history,"code":200})
     
+# Api for get CSV files
 class GetAlluploadedcsv(APIView):
     authentication_classes=[JWTAuthentication]
     def get(self,request):
         history=CsvFileData.objects.all().values().order_by("id")
         return Response({"data":history,"code":200})
+
+# Api for user delete
+class DeleteUser(APIView):
+    def delete(self, request, id):
+        try:
+            user = User.objects.get(id=id)
+            user.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
+        
+# APi For Profile Update
+class ProfileUpdate(APIView):
+    authentication_classes=[JWTAuthentication]
+    def put(self,request,id):
+        try:
+            user_update = User.objects.get(id = id)
+        except User.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        
+        serializer=UpdateProfileSerializer(user_update , data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data,status=status.HTTP_200_OK)
+        return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
+
+
+        
+         
+            

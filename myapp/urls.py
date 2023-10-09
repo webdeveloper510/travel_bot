@@ -10,7 +10,6 @@ urlpatterns = [
     path('userprofile/', UserProfileView.as_view(),name='userprofile'),
     path('logout/', LogoutUser.as_view(),name='logout'),
     path('userlist/', UserList.as_view(),name='csvupload'),
-
     path('csvupload/', UploadCsv.as_view(),name='csvupload'),
     path('trainmodel/', TrainModel.as_view(),name='trainmodel'),
     path('prediction/', prediction.as_view(),name='prediction'),
@@ -18,8 +17,9 @@ urlpatterns = [
     path('csvfilehistory/', GetAlluploadedcsv.as_view(),name='csvfilehistory'),    
     path('userdelete/<int:id>/', DeleteUser.as_view(),name='userdelete'),
     path('profileupdate/<int:id>/', ProfileUpdate.as_view(), name='profileupdate'),
-    path('userstatus/<int:id>/', Active_Inactive.as_view(), name='userstatus'),
+    path('userstatus/<int:id>/', ActiveInactive.as_view(), name='userstatus'),
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
+    path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
 
 
 ]

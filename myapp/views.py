@@ -96,7 +96,7 @@ class UserList(APIView):
     permission_classes=[IsAuthenticated]
     authentication_classes=[JWTAuthentication]
     def get(self,request,format=None):
-        users = User.objects.all().order_by('id').values()
+        users = User.objects.filter(is_admin=0).order_by('id').values()
         response=[]
         for user in users:
             created_at=user.get("created_at")
@@ -351,20 +351,16 @@ class ProfileUpdate(APIView):
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
         
-class Active_Inactive(APIView):
-    def post(self,request ,id) :
-        user_active=request.data.get("is_active")
-        try:
-            user=User.objects.get(id=id)
-            user.is_active = user_active
-            user.save()
-            if user.is_active=="True":
-                return Response({"message":"User is Active"},status=status.HTTP_200_OK)
-            else:
-                return Response({"message":"User is InActive"},status=status.HTTP_200_OK)
-            
-        except User.DoesNotExist:
-            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+class ActiveInactive(APIView):
+
+    def post(self, request, id):
+        user_active = request.data.get("is_active")
+        user = User.objects.filter(id=id).update(is_active=user_active)
+        user = User.objects.get(id=id)  # Fetch the user object again after updating
+        if user.is_active:
+            return Response({"message": "User is Active"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"message": "User is Inactive"}, status=status.HTTP_200_OK)
         
         
 class UserChangePasswordView(APIView):
@@ -376,5 +372,15 @@ class UserChangePasswordView(APIView):
     return Response({'msg':'Password Changed Successfully'}, status=status.HTTP_200_OK)
 
     
+class CsvDeleteView(APIView):
+    authentication_classes=[JWTAuthentication]
+    def delete(self, request, id):
+        try:
+            csvfile = CsvFileData.objects.get(id=id)
+            csvfile.delete()
+            return Response({"message":"File Delete Successfully"},status=status.HTTP_204_NO_CONTENT)
+        except Exception as e:
+            return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
+
 
         

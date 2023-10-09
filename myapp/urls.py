@@ -18,6 +18,9 @@ urlpatterns = [
     path('csvfilehistory/', GetAlluploadedcsv.as_view(),name='csvfilehistory'),    
     path('userdelete/<int:id>/', DeleteUser.as_view(),name='userdelete'),
     path('profileupdate/<int:id>/', ProfileUpdate.as_view(), name='profileupdate'),
+    path('userstatus/<int:id>/', Active_Inactive.as_view(), name='userstatus'),
+    path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
+
 
 ]
 

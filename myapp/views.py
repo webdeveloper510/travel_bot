@@ -350,7 +350,31 @@ class ProfileUpdate(APIView):
             return Response(serializer.data,status=status.HTTP_200_OK)
         return Response(serializer.errors,status=status.HTTP_400_BAD_REQUEST)
 
+        
+class Active_Inactive(APIView):
+    def post(self,request ,id) :
+        user_active=request.data.get("is_active")
+        try:
+            user=User.objects.get(id=id)
+            user.is_active = user_active
+            user.save()
+            if user.is_active=="True":
+                return Response({"message":"User is Active"},status=status.HTTP_200_OK)
+            else:
+                return Response({"message":"User is InActive"},status=status.HTTP_200_OK)
+            
+        except User.DoesNotExist:
+            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        
+class UserChangePasswordView(APIView):
+  renderer_classes = [UserRenderer]
+  authentication_classes=[JWTAuthentication]
+  def post(self, request, format=None):
+    serializer = UserChangePasswordSerializer(data=request.data, context={'user':request.user})
+    serializer.is_valid(raise_exception=True)
+    return Response({'msg':'Password Changed Successfully'}, status=status.HTTP_200_OK)
+
+    
 
         
-         
-            

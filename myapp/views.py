@@ -305,7 +305,7 @@ class prediction(APIView):
                 response_data = {"Question":input,"Answer": value_found}
                 return Response({"data":response_data,"code":200})
         else:
-            response_data = {"Message":"Data Not Found"}
+            return Response({"Message":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
             
         return Response({"data":response_data,"code":200})
      

@@ -73,12 +73,56 @@ class User(AbstractBaseUser,PermissionsMixin):
 # class Topic(models.Model):
 #     topic_name=models.CharField(max_length=200,null=True,blank=True)
 
+'''
+Vendor
+NET Cost by Experience
+NET Cost by Hour
+NET Cost Per Person Adult
+NET Cost Per Person Child/Senior
+Is The Guide Included in the cost
+Maximum Pax per cost
+Location
+Description of the Experience
+Time of Visit (in hours)
+Contact First Name
+Contact Last Name
+Contact Number
+Contact Email
+Tag 1
+Tag 2
+Tag 3
+Tag 4
+Tag 5
+Tag 6
+
+'''
+
 class TravelBotData(models.Model):
-    topic_name=models.CharField(max_length=200,null=True,blank=True)
-    question=models.TextField(max_length=1000)
-    answer=models.TextField(max_length=1000)
+    # topic_name=models.CharField(max_length=200,null=True,blank=True)
+    # question=models.TextField(max_length=1000)
+    # answer=models.TextField(max_length=1000)
     
-    
+    Vendor = models.CharField(max_length=255, null=True , blank=True)
+    net_Cost_by_Experience = models.CharField(max_length=255, null=True , blank=True)
+    net_Cost_by_Hour = models.CharField(max_length=255, null=True , blank=True)
+    net_Cost_Per_Person_Adult = models.CharField(max_length=255, null=True , blank=True)
+    net_Cost_Per_Person_Child_Senior = models.CharField(max_length=255, null=True , blank=True)
+    Is_The_Guide_Included_in_the_cost = models.CharField(max_length=255, null=True , blank=True)
+    Maximum_Pax_per_cost = models.CharField(max_length=255, null=True , blank=True)
+    Location = models.CharField(max_length=255, null=True , blank=True)
+    Description_of_the_Experience = models.CharField(max_length=255, null=True , blank=True)
+    Time_of_Visit_hours = models.CharField(max_length=255, null=True , blank=True)
+    Contact_First_Name = models.CharField(max_length=255, null=True , blank=True)
+    Contact_Last_Name = models.CharField(max_length=255, null=True , blank=True)
+    Contact_Number = models.CharField(max_length=255, null=True , blank=True)
+    Contact_Email = models.CharField(max_length=255, null=True , blank=True)
+    Tag_1 = models.CharField(max_length=255, null=True , blank=True)
+    Tag_2 = models.CharField(max_length=255, null=True , blank=True)
+    Tag_3 = models.CharField(max_length=255, null=True , blank=True)
+    Tag_4 = models.CharField(max_length=255, null=True , blank=True)
+    Tag_5 = models.CharField(max_length=255, null=True , blank=True)
+    Tag_6 = models.CharField(max_length=255, null=True , blank=True)
+
 class CsvFileData(models.Model):
     csvfile=models.FileField(upload_to="user_csv/",blank=True,null=True)
     csvname=models.CharField(max_length=200,blank=True,null=True)

@@ -115,12 +115,11 @@ class UploadCsv(APIView):
         input_csv = request.FILES['csv_file']
         try:
             data = pd.read_csv(input_csv)
-            expected_columns = ["question", "answer", "label"]
-            
+            expected_columns = ["ID", "Vendor", "NET Cost by Experience", "NET Cost by Hour", "NET Cost Per Person Adult", "NET Cost Per Person Child/Senior", "Is The Guide Included in the cost", "Maximum Pax per cost", "Location", "Description of the Experience", "Time of Visit (in hours)", "Contact First Name", "Contact Last Name", "Contact Number", "Contact Email", "Tag 1", "Tag 2", "Tag 3", "Tag 4", "Tag 5", "Tag 6"]
+
             # Check if the CSV has the expected columns
             if not all(col in data.columns for col in expected_columns):
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'CSV format is not as expected'})
-            
             if not CsvFileData.objects.filter(csvname=input_csv).exists():
                 fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
                 serializer = CsvFileDataSerializer(fileupload)
@@ -129,85 +128,160 @@ class UploadCsv(APIView):
                 fileupload.save()
                 
             for index, row in data.iterrows():
-                questions = row["question"]
-                answers = row["answer"]
-                label = row['label']
-                if not TravelBotData.objects.filter(question=questions , answer=answers).exists():
-                    dataload = TravelBotData.objects.create(question=questions, answer=answers, topic_name=label)
+                Vendor = row["Vendor"]
+                net_Cost_by_Experience = row["NET Cost by Experience"]
+                net_Cost_by_Hour = row["NET Cost by Hour"]
+                net_Cost_Per_Person_Adult = row["NET Cost Per Person Adult"]
+                net_Cost_Per_Person_Child_Senior = row["NET Cost Per Person Child/Senior"]
+                Is_The_Guide_Included_in_the_cost = row["Is The Guide Included in the cost"]
+                Maximum_Pax_per_cost = row["Maximum Pax per cost"]
+                Location = row["Location"]
+                Description_of_the_Experience = row["Description of the Experience"]
+                Time_of_Visit_hours = row["Time of Visit (in hours)"]
+                Contact_First_Name = row["Contact First Name"]
+                Contact_Last_Name = row["Contact Last Name"]
+                Contact_Number = row["Contact Number"]
+                Contact_Email = row["Contact Email"]
+                Tag_1 = row["Tag 1"]
+                Tag_2 = row["Tag 2"]
+                Tag_3 = row["Tag 3"]
+                Tag_4 = row["Tag 4"]
+                Tag_5 = row["Tag 5"]
+                Tag_6 = row["Tag 6"]
+
+                if not TravelBotData.objects.filter(Vendor = Vendor, net_Cost_by_Experience = net_Cost_by_Experience, net_Cost_by_Hour = net_Cost_by_Hour, net_Cost_Per_Person_Adult = net_Cost_Per_Person_Adult, net_Cost_Per_Person_Child_Senior = net_Cost_Per_Person_Child_Senior, Is_The_Guide_Included_in_the_cost = Is_The_Guide_Included_in_the_cost, Maximum_Pax_per_cost = Maximum_Pax_per_cost, Location = Location, Description_of_the_Experience = Description_of_the_Experience, Time_of_Visit_hours = Time_of_Visit_hours, Contact_First_Name = Contact_First_Name, Contact_Last_Name = Contact_Last_Name, Contact_Number = Contact_Number, Contact_Email = Contact_Email, Tag_1 = Tag_1, Tag_2 = Tag_2, Tag_3 = Tag_3, Tag_4 = Tag_4, Tag_5 = Tag_5, Tag_6 = Tag_6).exists():
+                    dataload = TravelBotData.objects.create(Vendor = Vendor, net_Cost_by_Experience = net_Cost_by_Experience, net_Cost_by_Hour = net_Cost_by_Hour, net_Cost_Per_Person_Adult = net_Cost_Per_Person_Adult, net_Cost_Per_Person_Child_Senior = net_Cost_Per_Person_Child_Senior, Is_The_Guide_Included_in_the_cost = Is_The_Guide_Included_in_the_cost, Maximum_Pax_per_cost = Maximum_Pax_per_cost, Location = Location, Description_of_the_Experience = Description_of_the_Experience, Time_of_Visit_hours = Time_of_Visit_hours, Contact_First_Name = Contact_First_Name, Contact_Last_Name = Contact_Last_Name, Contact_Number = Contact_Number, Contact_Email = Contact_Email, Tag_1 = Tag_1, Tag_2 = Tag_2, Tag_3 = Tag_3, Tag_4 = Tag_4, Tag_5 = Tag_5, Tag_6 = Tag_6)
                     dataload.save()
             return Response({'message': "File uploaded and data saved successfully"})
-
         except Exception as e:
             return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
         
-# Api for train model  
-class TrainModel(APIView):
-    authentication_classes=[JWTAuthentication]
-    def clean_text(self,text):
-        REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-        BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-        STOPWORDS=set(stopwords.words("english"))
-        if not text:
-            return ""
-        text=text.lower()
-        text=REPLACE_BY_SPACE_RE.sub(' ',text)
-        text=BAD_SYMBOLS_RE.sub(' ',text)
-        text=text.replace('x','')
-        text=' '.join(word for word in text.split() if word not in STOPWORDS)
-        return text
+# # class CleanFunctionsGroup():
+#     def clean_text(self,text):
+#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+#         STOPWORDS=set(stopwords.words("english"))
+#         if not text:
+#             return ""
+#         text=text.lower()
+#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
+#         text=BAD_SYMBOLS_RE.sub(' ',text)
+#         text=text.replace('x','')
+#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
+#         return text
     
-    def post(self, request):
-        traveldata=TravelBotData.objects.all().order_by('id')
-        serializer =TravelBotDataSerializer(traveldata, many=True)
-        array=[]
-        for data in serializer.data:
-            questions=self.clean_text(data['question'])
-            answer=data['answer']
-            topic_name=data['topic_name']
-            data_dict={"Topic":topic_name,"question":questions,"answer":answer}
-            array.append(data_dict)
-        Questions=[dict['question'] for dict in array]
-        # # define the parameter for model.
-        MAX_NB_WORDS = 1000
-        MAX_SEQUENCE_LENGTH =200
-        EMBEDDING_DIM = 100
-        oov_token = "<OOV>"
-        tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~',oov_token = "<OOV>", lower=True)
-        tokenizer.fit_on_texts(Questions)
-        word_index = tokenizer.word_index
-        sequence= tokenizer.texts_to_sequences(Questions)
-        ## Create input for model
-        input_data=pad_sequences(sequence, maxlen=MAX_SEQUENCE_LENGTH)             # input 
+# Api for train model  
+# class TrainModel(APIView):
+#     authentication_classes=[JWTAuthentication]
+#     def clean_text(self,text):
+#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+#         STOPWORDS=set(stopwords.words("english"))
+#         if not text:
+#             return ""
+#         text=text.lower()
+#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
+#         text=BAD_SYMBOLS_RE.sub(' ',text)
+#         text=text.replace('x','')
+#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
+#         return text
+    
+#     def post(self, request):
+#         traveldata=TravelBotData.objects.all().order_by('id')
+#         serializer =TravelBotDataSerializer(traveldata, many=True)
+#         array=[]
+#         for data in serializer.data:
+#             # questions=self.clean_text(data['question'])
+#             # answer=data['answer']
+#             # topic_name=data['topic_name']
+#             Vendor = data['Vendor']
+#             net_Cost_by_Experience = data['net_Cost_by_Experience']
+#             net_Cost_by_Hour = data['net_Cost_by_Hour']
+#             net_Cost_Per_Person_Adult = data['net_Cost_Per_Person_Adult']
+#             net_Cost_Per_Person_Child_Senior = data['net_Cost_Per_Person_Child_Senior']
+#             Is_The_Guide_Included_in_the_cost = data['Is_The_Guide_Included_in_the_cost']
+#             Maximum_Pax_per_cost = data['Maximum_Pax_per_cost']
+#             Location = data['Location']
+#             Description_of_the_Experience = data['Description_of_the_Experience']
+#             Time_of_Visit_hours = data['Time_of_Visit_hours']
+#             Contact_First_Name = data['Contact_First_Name']
+#             Contact_Last_Name = data['Contact_Last_Name']
+#             Contact_Number = data['Contact_Number']
+#             Contact_Email = data['Contact_Email']
+#             Tag_1 = data['Tag_1']
+#             Tag_2 = data['Tag_2']
+#             Tag_3 = data['Tag_3']
+#             Tag_4 = data['Tag_4']
+#             Tag_5 = data['Tag_5']
+#             Tag_6 = data['Tag_6']
+#             data_dict={'Vendor':Vendor, 'net_Cost_by_Experience':net_Cost_by_Experience, 'net_Cost_by_Hour':net_Cost_by_Hour, 'net_Cost_Per_Person_Adult':net_Cost_Per_Person_Adult, 'net_Cost_Per_Person_Child_Senior':net_Cost_Per_Person_Child_Senior, 'Is_The_Guide_Included_in_the_cost':Is_The_Guide_Included_in_the_cost, 'Maximum_Pax_per_cost':Maximum_Pax_per_cost, 'Location':Location, 'Description_of_the_Experience':Description_of_the_Experience, 'Time_of_Visit_hours':Time_of_Visit_hours, 'Contact_First_Name':Contact_First_Name, 'Contact_Last_Name':Contact_Last_Name, 'Contact_Number':Contact_Number, 'Contact_Email':Contact_Email, 'Tag_1':Tag_1, 'Tag_2':Tag_2, 'Tag_3':Tag_3, 'Tag_4':Tag_4, 'Tag_5':Tag_5, 'Tag_6':Tag_6}
+#             array.append(data_dict)
+#         Questions=[dict['question'] for dict in array]
+#         # # define the parameter for model.
+#         MAX_NB_WORDS = 1000# class CleanFunctionsGroup():
+#     def clean_text(self,text):
+#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+#         STOPWORDS=set(stopwords.words("english"))
+#         if not text:
+#             return ""
+#         text=text.lower()
+#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
+#         text=BAD_SYMBOLS_RE.sub(' ',text)
+#         text=text.replace('x','')
+#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
+#         return text
+#         MAX_SEQUENCE_LENGTH =200
+#         EMBEDDING_DIM = 100
+#         oov_token = "<OOV>"
+#         tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~',oov_token = "<OOV>", lower=True)
+#         tokenizer.fit_on_texts(Questions)
+#         word_index = tokenizer.word_index
+#         sequence= tokenizer.texts_to_sequences(Questions)
+#         ## Create input for model
+#         input_data=pad_sequences(sequence, maxlen=MAX_SEQUENCE_LENGTH)             # input 
         
-        # convert label into dummies using LabelEncoder.
-        Y_data = [dict['Topic'].strip() for dict in array]
-        lbl_encoder = LabelEncoder()
-        lbl_encoder.fit(Y_data)
-        output_Y = lbl_encoder.transform(Y_data) 
-        cluster_label = lbl_encoder.classes_.tolist()
-        num_class=len(cluster_label)
-        # define the layers for sequential model.
-        model = Sequential()
-        model.add(Embedding(MAX_NB_WORDS, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH))
-        model.add(GlobalAveragePooling1D())
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(64, activation='relu'))
-        model.add(Dense(num_class, activation='softmax'))
+#         # convert label into dummies using LabelEncoder.
+#         Y_data = [dict['Topic'].strip() for dict in array]
+#         lbl_encoder = LabelEncoder()
+#         lbl_encoder.fit(Y_data)
+#         output_Y = lbl_encoder.transform(Y_data) 
+#         cluster_label = lbl_encoder.classes_.tolist()
+#         num_class=len(cluster_label)
+#         # define the layers for sequential model.
+#         model = Sequential()
+#         model.add(Embedding(MAX_NB_WORDS, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH))
+#         model.add(GlobalAveragePooling1D())
+#         model.add(Dense(64, activation='relu'))
+#         model.add(Dense(64, activation='relu'))
+#         model.add(Dense(64, activation='relu'))
+#         model.add(Dense(num_class, activation='softmax'))
 
-        model.compile(loss='sparse_categorical_crossentropy',optimizer='adam', metrics=['accuracy'])
-        epochs =500
-        batch_size=128
-        model.fit(input_data, np.array(output_Y), epochs=epochs, batch_size=batch_size)
-        # # Save Model
-        model_json=model.to_json()
-        with open(os.getcwd()+"/saved_model/classification_model.json", "w") as json_file:
-            json_file.write(model_json)
-        model.save_weights(os.getcwd()+"/saved_model/classification_model_weights.h5")
-        # Save the cluster label list
-        with open(os.getcwd()+"/saved_model/cluster_labels.pkl", "wb") as file:
-            pickle.dump(cluster_label, file)
-        return Response({'message':"Model Train Successfully"})
+#         model.compile(loss='sparse_categorical_crossentropy',optimizer='adam', metrics=['accuracy'])
+#         epochs =500
+#         batch_size=128
+#         model.fit(input_data, np.array(output_Y), epochs=epochs, batch_size=batch_size)
+#         # # Save Model
+#         model_json=model.to_json()
+#         with open(os.getcwd()+"/saved_model/classification_model.json", "w") as json_file:
+#             json_file.write(model_json)
+#         model.save_weights(os.getcwd()+"/saved_model/classification_model_weights.h5")
+#         # Save the cluster label list
+#         with open(os.getcwd()+"/saved_model/cluster_labels.pkl", "wb") as file:
+#             pickle.dump(cluster_l# class CleanFunctionsGroup():
+#     def clean_text(self,text):
+#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+#         STOPWORDS=set(stopwords.words("english"))
+#         if not text:
+#             return ""
+#         text=text.lower()
+#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
+#         text=BAD_SYMBOLS_RE.sub(' ',text)
+#         text=text.replace('x','')
+#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
+#         return textabel, file)
+#         return Response({'message':"Model Train Successfully"})
 
 
 details_dict={
@@ -233,81 +307,106 @@ details_dict={
 # Api for predict Answer
 class prediction(APIView):
     authentication_classes=[JWTAuthentication]
-    model_path=os.getcwd()+"/saved_model/classification_model.json"
-    model_weight_path=os.getcwd()+"/saved_model/classification_model_weights.h5"
-    cluster_label_path=os.getcwd()+'/saved_model/cluster_labels.pkl'
-    clean_func=TrainModel()     
+    def clean_text(self,text):
+        REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+        BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+        STOPWORDS=set(stopwords.words("english"))
+        if not text:
+            return ""
+        text=text.lower()
+        text=REPLACE_BY_SPACE_RE.sub(' ',text)
+        text=BAD_SYMBOLS_RE.sub(' ',text)
+        text=text.replace('x','')
+        text=' '.join(word for word in text.split() if word not in STOPWORDS)
+        return text
     
     def post(self, request):
+        questionInput = request.data.get('query')
+        question=self.clean_text(questionInput)
         service = TravelBotData.objects.all().order_by('id')
-        serializer = TravelBotDataSerializer(service, many=True)
-        array=[]
-        for x in serializer.data:
-            question=self.clean_func.clean_text(x["question"])
-            answer=x["answer"]
-            TopicName=(x['topic_name'])
-            data_dict={"Topic":TopicName,"question":question,"answer":answer}
-            array.append(data_dict)
+        for i in service:
+            newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number,  i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4,  i.Tag_5, i.Tag_6]
+            cleaned_attributes = [self.clean_text(attr) if attr and str(attr).lower() != 'nan' else '' for attr in newList]
+            print(cleaned_attributes, "-------------------?>")
+            vectorizer = TfidfVectorizer()
+            vectorizer.fit(cleaned_attributes)
+            question_vectors = vectorizer.transform(cleaned_attributes)                                  # 2. all questions
+            input_vector = vectorizer.transform([question])
+            similarity_scores = input_vector.dot(question_vectors.T).toarray().flatten()  # Ensure 1-dimensional array
+            max_sim_index = np.argmax(similarity_scores)
+            similarity_percentage = similarity_scores[max_sim_index] * 100
+            print(similarity_percentage, '=================>')
+
+        # for i in dataFromTable:
+        #     for j , l in i.items():
+        #         print(l)
+
+        #     answer=x["answer"]
+        #     TopicName=(x['topic_name'])
+        #     data_dict={"Topic":TopicName,"question":question,"answer":answer}
+        #     array.append(data_dict)
             
-        Questions=[dict['question'] for dict in array]
+        # Questions=[dict['question'] for dict in array]
         # Tokenizer data.
-        MAX_NB_WORDS = 10000
-        MAX_SEQUENCE_LENGTH =200
-        EMBEDDING_DIM = 100
-        oov_token = "<OOV>"
-        tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~', oov_token = "<OOV>", lower=True)
-        tokenizer.fit_on_texts(Questions)
-        word_index = tokenizer.word_index
+        # MAX_NB_WORDS = 10000
+        # MAX_SEQUENCE_LENGTH =200
+        # EMBEDDING_DIM = 100
+        # oov_token = "<OOV>"
+        # tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~', oov_token = "<OOV>", lower=True)
+        # # tokenizer.fit_on_texts(Questions)
+        # word_index = tokenizer.word_index
         
-        # get the json labels
-        with open(self.cluster_label_path, "rb") as file:
-            cluster_labels = pickle.load(file)
-        # Load Saved Model.
-        json_file = open(self.model_path, 'r')
-        loaded_model_json = json_file.read()
-        json_file.close()
-        loaded_model = model_from_json(loaded_model_json)
-        loaded_model.load_weights(self.model_weight_path)
-        # Take user input and preprocess as input
-        user_input=request.data.get("query")
-        input=spell(user_input)
-        value_found=details_dict.get(input.lower().strip())
-        clean_user_input=self.clean_func.clean_text(input)
-        new_input = tokenizer.texts_to_sequences([clean_user_input])
-        new_input = pad_sequences(new_input, maxlen=MAX_SEQUENCE_LENGTH) 
+        # # get the json labels
+        # with open(self.cluster_label_path, "rb") as file:
+        #     cluster_labels = pickle.load(file)
+        # # Load Saved Model.
+        # json_file = open(self.model_path, 'r')
+        # loaded_model_json = json_file.read()
+        # json_file.close()
+        # loaded_model = model_from_json(loaded_model_json)
+        # loaded_model.load_weights(self.model_weight_path)
+        # # Take user input and preprocess as input
+        # user_input=request.data.get("query")
+        # print(user_input)
+        # input=spell(user_input)
+        # value_found=details_dict.get(input.lower().strip())
+        # clean_user_input=self.clean_func.clean_text(input)
+        # new_input = tokenizer.texts_to_sequences([clean_user_input])
+        # new_input = pad_sequences(new_input, maxlen=MAX_SEQUENCE_LENGTH) 
         
-        # Make Prediction
-        pred =loaded_model.predict(new_input)
-        databasew_match=pred, cluster_labels[np.argmax(pred)]
-        result=databasew_match[1]
-        # Get the answer based on the question.
-        filter_data = [dict for dict in array if dict["Topic"].strip()== result.strip()]
-        get_all_questions=[dict['question'] for dict in filter_data] 
-        vectorizer = TfidfVectorizer()
-        vectorizer.fit(get_all_questions)
-        question_vectors = vectorizer.transform(get_all_questions)                                  # 2. all questions
-        input_vector = vectorizer.transform([clean_user_input])
-        # check the similarity of the model
-        similarity_scores = question_vectors.dot(input_vector.T).toarray().flatten()  # Ensure 1-dimensional array
-        max_sim_index = np.argmax(similarity_scores)
-        similarity_percentage = similarity_scores[max_sim_index] * 100
-        if (similarity_percentage)>=65:
-            answer = filter_data[max_sim_index]['answer'] 
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=input,answer=answer)
-            conversation.save()
-            response_data = {
-                "Question":input,
-                "Label": result,
-                "Answer": answer,
+        # # Make Prediction
+        # pred =loaded_model.predict(new_input)
+        # databasew_match=pred, cluster_labels[np.argmax(pred)]
+        # result=databasew_match[1]
+        # # Get the answer based on the question.
+        # # filter_data = [dict for dict in array if dict["Topic"].strip()== result.strip()]
+        # get_all_questions=[dict['question'] for dict in filter_data] 
+        # vectorizer = TfidfVectorizer()
+        # vectorizer.fit(get_all_questions)
+        # question_vectors = vectorizer.transform(get_all_questions)                                  # 2. all questions
+        # input_vector = vectorizer.transform([clean_user_input])
+        # # check the similarity of the model            answerPredict = self.clean_text(newList)
+
+        # similarity_scores = question_vectors.dot(input_vector.T).toarray().flatten()  # Ensure 1-dimensional array
+        # max_sim_index = np.argmax(similarity_scores)
+        # similarity_percentage = similarity_scores[max_sim_index] * 100
+        # if (similarity_percentage)>=65:
+        #     # answer = filter_data[max_sim_index]['answer'] 
+        #     # conversation=UserActivity.objects.create(user_id=request.user.id,questions=input,answer=answer)
+        #     # conversation.save()
+        #     response_data = {
+        #         "Question":input,
+        #         "Label": result,
+        #         # "Answer": answer,
             
-                "AnswerSource":"This Response Done From Database"}
-        elif value_found:
-                response_data = {"Question":input,"Answer": value_found}
-                return Response({"data":response_data,"code":200})
-        else:
-            return Response({"Message":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
+        #         "AnswerSource":"This Response Done From Database"}
+        # elif value_found:
+        #         response_data = {"Question":input,"Answer": value_found}
+        #         return Response({"data":response_data,"code":200})
+        # else:
+        #     return Response({"Message":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
             
-        return Response({"data":response_data,"code":200})
+        # return Response({"data":response_data,"code":200})
      
 # Api for get user history   
 class GetUserHistory(APIView):

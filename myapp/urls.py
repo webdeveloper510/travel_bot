@@ -11,7 +11,7 @@ urlpatterns = [
     path('logout/', LogoutUser.as_view(),name='logout'),
     path('userlist/', UserList.as_view(),name='csvupload'),
     path('csvupload/', UploadCsv.as_view(),name='csvupload'),
-    path('trainmodel/', TrainModel.as_view(),name='trainmodel'),
+    # path('trainmodel/', TrainModel.as_view(),name='trainmodel'),
     path('prediction/', prediction.as_view(),name='prediction'),
     path('userhistory/', GetUserHistory.as_view(),name='userhistory'),
     path('csvfilehistory/', GetAlluploadedcsv.as_view(),name='csvfilehistory'),    
@@ -20,8 +20,6 @@ urlpatterns = [
     path('userstatus/<int:id>/', ActiveInactive.as_view(), name='userstatus'),
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
-
-
 ]
 
 if settings.DEBUG:

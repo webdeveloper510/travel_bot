@@ -36,6 +36,8 @@ from TravelBot.settings import DEEP_API_KEY
 from autocorrect import Speller
 spell=Speller(lang='en')
 import fuzzywuzzy
+from keybert import KeyBERT
+
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 # import nltk
@@ -202,7 +204,13 @@ details_dict={
 # Api for predict Answer
 class prediction(APIView):
     authentication_classes=[JWTAuthentication]
-        
+    
+    def automaticgetlabel(self, text):
+        kw_model = KeyBERT()
+        keywords = kw_model.extract_keywords(text)
+        keyword= kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 2), stop_words='english',top_n=1)
+        return keyword
+    
     def post(self, request,format=None):
         matched_items = []
         max_non_empty_count = 0

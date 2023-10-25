@@ -36,13 +36,16 @@ from TravelBot.settings import DEEP_API_KEY
 from autocorrect import Speller
 spell=Speller(lang='en')
 import fuzzywuzzy
-from keybert import KeyBERT
-
 from fuzzywuzzy import fuzz
 from fuzzywuzzy import process
 # import nltk
 import re
 # import string
+
+import pke
+
+# initialize keyphrase extraction model, here TopicRank
+extractor = pke.unsupervised.TopicRank()
 
 
 url="http://127.0.0.1:8000/static/media/"
@@ -204,13 +207,7 @@ details_dict={
 # Api for predict Answer
 class prediction(APIView):
     authentication_classes=[JWTAuthentication]
-    
-    def automaticgetlabel(self, text):
-        kw_model = KeyBERT()
-        keywords = kw_model.extract_keywords(text)
-        keyword= kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 2), stop_words='english',top_n=1)
-        return keyword
-    
+        
     def post(self, request,format=None):
         matched_items = []
         max_non_empty_count = 0
@@ -258,18 +255,25 @@ class prediction(APIView):
                                             AnswerDict[key] = j
                                     if re.search(key.replace('_', ' ').lower() , questionInput.lower()):
                                         AnswerDict[key] = value
+        label = ''
         if AnswerDict:
             r = requests.post("https://api.deepai.org/api/text-generator",{"text":str(AnswerDict)},headers={'api-key':DEEP_API_KEY})
             genratedText = r.json()
             itenary_answer=genratedText['output']
+            extractor.load_document(input=itenary_answer, language='en')
+            extractor.candidate_selection()
+            extractor.candidate_weighting()
+            keyphrases = extractor.get_n_best(n=10)
+            label = keyphrases[0][0]
             assert itenary_answer
+
             answer_found=True
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id},status=status.HTTP_200_OK)
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic},status=status.HTTP_200_OK)
         else:
             return Response({"Answer":"Chatgpt Integeration pending"},status=status.HTTP_204_NO_CONTENT)
 
@@ -278,7 +282,7 @@ class AnswerSuggestion(APIView):
     def put(self, request, id):
         suggestion=request.data.get('suggestion')
         if UserActivity.objects.get(id=id):
-            UserActivity.objects.update(answer=suggestion)
+            UserActivity.objects.filter(id=id).update(answer=suggestion)
             return Response({"Result":"Answer's suggestion Updated"},status=status.HTTP_200_OK)
         else:
             return Response({"Result":"Result not found for this question"},status=status.HTTP_204_NO_CONTENT)
@@ -288,7 +292,12 @@ class AddQuestionAnswer(APIView):
     def post(self , request):
         question = request.data.get('question')
         answer = request.data.get('answer')
-        createSuggestion = UserActivity.objects.create(user_id = request.user.id ,questions=question, answer=answer)
+        extractor.load_document(input=answer, language='en')
+        extractor.candidate_selection()
+        extractor.candidate_weighting()
+        keyphrases = extractor.get_n_best(n=10)
+        label = keyphrases[0][0]
+        createSuggestion = UserActivity.objects.create(user_id = request.user.id ,questions=question, answer=answer, topic=label)
         createSuggestion.save()
         return Response({"data":"Suggestion Added Successfully !"})
 

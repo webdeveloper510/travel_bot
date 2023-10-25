@@ -102,3 +102,10 @@ class UserChangePasswordSerializer(serializers.Serializer):
     user.save()
     return attrs
             
+# class QuestionAndAnswerSerializer(serializers.ModelSerializer):
+#     class Meta:
+#         model= QuestionAndAnswer
+#         fields = '__all__'
+           
+#     def create(self, validate_data):
+#         return QuestionAndAnswer.objects.create(**validate_data)

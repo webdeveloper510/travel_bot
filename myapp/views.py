@@ -23,20 +23,28 @@ from fuzzywuzzy import fuzz
 from django.utils import timezone
 from datetime import datetime
 import pickle
+import requests
 import json
 import os
 import re
 import pandas as pd
 import numpy as np
 import nltk
+from polyfuzz import PolyFuzz
 from nltk.corpus import stopwords
+from TravelBot.settings import DEEP_API_KEY
 from autocorrect import Speller
 spell=Speller(lang='en')
+import fuzzywuzzy
+from fuzzywuzzy import fuzz
+from fuzzywuzzy import process
+# import nltk
+import re
+# import string
 
 
-
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.171.134.22:8000/static/media/"
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.171.134.22:8000/static/media/"
 
 # Create your views here.
 
@@ -115,11 +123,13 @@ class UploadCsv(APIView):
         input_csv = request.FILES['csv_file']
         try:
             data = pd.read_csv(input_csv)
-            expected_columns = ["ID", "Vendor", "NET Cost by Experience", "NET Cost by Hour", "NET Cost Per Person Adult", "NET Cost Per Person Child/Senior", "Is The Guide Included in the cost", "Maximum Pax per cost", "Location", "Description of the Experience", "Time of Visit (in hours)", "Contact First Name", "Contact Last Name", "Contact Number", "Contact Email", "Tag 1", "Tag 2", "Tag 3", "Tag 4", "Tag 5", "Tag 6"]
+            data.dropna(how="all", inplace=True)
+            expected_columns = ["ID","Vendor","NET Cost by Experience", "NET Cost by Hour", "NET Cost Per Person Adult", "NET Cost Per Person Child/Senior", "Is The Guide Included in the cost", "Maximum Pax per cost", "Location", "Description of the Experience", "Time of Visit (in hours)", "Contact First Name", "Contact Last Name", "Contact Number", "Contact Email", "Tag 1", "Tag 2", "Tag 3", "Tag 4", "Tag 5", "Tag 6"]
 
             # Check if the CSV has the expected columns
             if not all(col in data.columns for col in expected_columns):
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message': 'CSV format is not as expected'})
+            
             if not CsvFileData.objects.filter(csvname=input_csv).exists():
                 fileupload = CsvFileData.objects.create(csvfile=input_csv, csvname=input_csv.name)
                 serializer = CsvFileDataSerializer(fileupload)
@@ -155,141 +165,26 @@ class UploadCsv(APIView):
             return Response({'message': "File uploaded and data saved successfully"})
         except Exception as e:
             return Response({'status': status.HTTP_500_INTERNAL_SERVER_ERROR, 'message': str(e)})
-        
-# # class CleanFunctionsGroup():
-#     def clean_text(self,text):
-#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-#         STOPWORDS=set(stopwords.words("english"))
-#         if not text:
-#             return ""
-#         text=text.lower()
-#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
-#         text=BAD_SYMBOLS_RE.sub(' ',text)
-#         text=text.replace('x','')
-#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
-#         return text
-    
-# Api for train model  
-# class TrainModel(APIView):
-#     authentication_classes=[JWTAuthentication]
-#     def clean_text(self,text):
-#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-#         STOPWORDS=set(stopwords.words("english"))
-#         if not text:
-#             return ""
-#         text=text.lower()
-#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
-#         text=BAD_SYMBOLS_RE.sub(' ',text)
-#         text=text.replace('x','')
-#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
-#         return text
-    
-#     def post(self, request):
-#         traveldata=TravelBotData.objects.all().order_by('id')
-#         serializer =TravelBotDataSerializer(traveldata, many=True)
-#         array=[]
-#         for data in serializer.data:
-#             # questions=self.clean_text(data['question'])
-#             # answer=data['answer']
-#             # topic_name=data['topic_name']
-#             Vendor = data['Vendor']
-#             net_Cost_by_Experience = data['net_Cost_by_Experience']
-#             net_Cost_by_Hour = data['net_Cost_by_Hour']
-#             net_Cost_Per_Person_Adult = data['net_Cost_Per_Person_Adult']
-#             net_Cost_Per_Person_Child_Senior = data['net_Cost_Per_Person_Child_Senior']
-#             Is_The_Guide_Included_in_the_cost = data['Is_The_Guide_Included_in_the_cost']
-#             Maximum_Pax_per_cost = data['Maximum_Pax_per_cost']
-#             Location = data['Location']
-#             Description_of_the_Experience = data['Description_of_the_Experience']
-#             Time_of_Visit_hours = data['Time_of_Visit_hours']
-#             Contact_First_Name = data['Contact_First_Name']
-#             Contact_Last_Name = data['Contact_Last_Name']
-#             Contact_Number = data['Contact_Number']
-#             Contact_Email = data['Contact_Email']
-#             Tag_1 = data['Tag_1']
-#             Tag_2 = data['Tag_2']
-#             Tag_3 = data['Tag_3']
-#             Tag_4 = data['Tag_4']
-#             Tag_5 = data['Tag_5']
-#             Tag_6 = data['Tag_6']
-#             data_dict={'Vendor':Vendor, 'net_Cost_by_Experience':net_Cost_by_Experience, 'net_Cost_by_Hour':net_Cost_by_Hour, 'net_Cost_Per_Person_Adult':net_Cost_Per_Person_Adult, 'net_Cost_Per_Person_Child_Senior':net_Cost_Per_Person_Child_Senior, 'Is_The_Guide_Included_in_the_cost':Is_The_Guide_Included_in_the_cost, 'Maximum_Pax_per_cost':Maximum_Pax_per_cost, 'Location':Location, 'Description_of_the_Experience':Description_of_the_Experience, 'Time_of_Visit_hours':Time_of_Visit_hours, 'Contact_First_Name':Contact_First_Name, 'Contact_Last_Name':Contact_Last_Name, 'Contact_Number':Contact_Number, 'Contact_Email':Contact_Email, 'Tag_1':Tag_1, 'Tag_2':Tag_2, 'Tag_3':Tag_3, 'Tag_4':Tag_4, 'Tag_5':Tag_5, 'Tag_6':Tag_6}
-#             array.append(data_dict)
-#         Questions=[dict['question'] for dict in array]
-#         # # define the parameter for model.
-#         MAX_NB_WORDS = 1000# class CleanFunctionsGroup():
-#     def clean_text(self,text):
-#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-#         STOPWORDS=set(stopwords.words("english"))
-#         if not text:
-#             return ""
-#         text=text.lower()
-#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
-#         text=BAD_SYMBOLS_RE.sub(' ',text)
-#         text=text.replace('x','')
-#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
-#         return text
-#         MAX_SEQUENCE_LENGTH =200
-#         EMBEDDING_DIM = 100
-#         oov_token = "<OOV>"
-#         tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~',oov_token = "<OOV>", lower=True)
-#         tokenizer.fit_on_texts(Questions)
-#         word_index = tokenizer.word_index
-#         sequence= tokenizer.texts_to_sequences(Questions)
-#         ## Create input for model
-#         input_data=pad_sequences(sequence, maxlen=MAX_SEQUENCE_LENGTH)             # input 
-        
-#         # convert label into dummies using LabelEncoder.
-#         Y_data = [dict['Topic'].strip() for dict in array]
-#         lbl_encoder = LabelEncoder()
-#         lbl_encoder.fit(Y_data)
-#         output_Y = lbl_encoder.transform(Y_data) 
-#         cluster_label = lbl_encoder.classes_.tolist()
-#         num_class=len(cluster_label)
-#         # define the layers for sequential model.
-#         model = Sequential()
-#         model.add(Embedding(MAX_NB_WORDS, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH))
-#         model.add(GlobalAveragePooling1D())
-#         model.add(Dense(64, activation='relu'))
-#         model.add(Dense(64, activation='relu'))
-#         model.add(Dense(64, activation='relu'))
-#         model.add(Dense(num_class, activation='softmax'))
 
-#         model.compile(loss='sparse_categorical_crossentropy',optimizer='adam', metrics=['accuracy'])
-#         epochs =500
-#         batch_size=128
-#         model.fit(input_data, np.array(output_Y), epochs=epochs, batch_size=batch_size)
-#         # # Save Model
-#         model_json=model.to_json()
-#         with open(os.getcwd()+"/saved_model/classification_model.json", "w") as json_file:
-#             json_file.write(model_json)
-#         model.save_weights(os.getcwd()+"/saved_model/classification_model_weights.h5")
-#         # Save the cluster label list
-#         with open(os.getcwd()+"/saved_model/cluster_labels.pkl", "wb") as file:
-#             pickle.dump(cluster_l# class CleanFunctionsGroup():
-#     def clean_text(self,text):
-#         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-#         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-#         STOPWORDS=set(stopwords.words("english"))
-#         if not text:
-#             return ""
-#         text=text.lower()
-#         text=REPLACE_BY_SPACE_RE.sub(' ',text)
-#         text=BAD_SYMBOLS_RE.sub(' ',text)
-#         text=text.replace('x','')
-#         text=' '.join(word for word in text.split() if word not in STOPWORDS)
-#         return textabel, file)
-#         return Response({'message':"Model Train Successfully"})
-
-
+    def clean_text(self,text):
+        REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
+        BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
+        STOPWORDS=set(stopwords.words("english"))
+        if not text:
+            return ""
+        text=text.lower()
+        text=REPLACE_BY_SPACE_RE.sub(' ',text)
+        text=BAD_SYMBOLS_RE.sub(' ',text)
+        text=text.replace('x','')
+        text=' '.join(word for word in text.split() if word not in STOPWORDS)
+        return text
 details_dict={
     "hi":"Hello",
     "hey" :"Hi",
     "is anyone there?" :"Hi there ",
     "is anyone there" :"Hi there ",
     "hello" :"Hi",
+    "hi there":"hello",
     "how are you" :"I am AI bot. I am always remain well.",
     "bye":"See you later",
     "see you later": "Have a nice day",
@@ -307,115 +202,101 @@ details_dict={
 # Api for predict Answer
 class prediction(APIView):
     authentication_classes=[JWTAuthentication]
-    def clean_text(self,text):
-        REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
-        BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
-        STOPWORDS=set(stopwords.words("english"))
-        if not text:
-            return ""
-        text=text.lower()
-        text=REPLACE_BY_SPACE_RE.sub(' ',text)
-        text=BAD_SYMBOLS_RE.sub(' ',text)
-        text=text.replace('x','')
-        text=' '.join(word for word in text.split() if word not in STOPWORDS)
-        return text
-    
-    def post(self, request):
+        
+    def post(self, request,format=None):
+        matched_items = []
+        max_non_empty_count = 0
+        most_non_empty_list = None
+        actual_dict = {}
+        AnswerDict = {}
+        AnswerList = []
+        answer_found = False
         questionInput = request.data.get('query')
-        question=self.clean_text(questionInput)
-        service = TravelBotData.objects.all().order_by('id')
-        for i in service:
-            newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number,  i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4,  i.Tag_5, i.Tag_6]
-            cleaned_attributes = [self.clean_text(attr) if attr and str(attr).lower() != 'nan' else '' for attr in newList]
-            print(cleaned_attributes, "-------------------?>")
-            vectorizer = TfidfVectorizer()
-            vectorizer.fit(cleaned_attributes)
-            question_vectors = vectorizer.transform(cleaned_attributes)                                  # 2. all questions
-            input_vector = vectorizer.transform([question])
-            similarity_scores = input_vector.dot(question_vectors.T).toarray().flatten()  # Ensure 1-dimensional array
-            max_sim_index = np.argmax(similarity_scores)
-            similarity_percentage = similarity_scores[max_sim_index] * 100
-            print(similarity_percentage, '=================>')
+        input=spell(questionInput)
+        value_found=details_dict.get(input.lower().strip())
+        if value_found:
+            itenary_answer=value_found
+            answer_found = True
+        else:
+            itenary_answer = None 
+            service = TravelBotData.objects.all().order_by('id')
+            for i in service:
+                newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
+                new_genrate_for_test = [element.strip().lower() for element in newList if element != 'nan']
+                all_fields = TravelBotData._meta.get_fields()
+                field_names = [field.name for field in all_fields]
+                del field_names[0]
+                count = 0
+                for keys in field_names:
+                    actual_dict[keys] = newList[count]
+                    count += 1  
+                resulting_string = '|'.join(new_genrate_for_test)
+                pattern = re.compile(rf'{resulting_string}')
+                matches = re.findall(pattern, questionInput.lower())
+                if matches:
+                    if matches not in matched_items:
+                        matched_items.append(matches)
+                    non_empty_count = sum(1 for item in matches if item.strip())
+                    if non_empty_count > max_non_empty_count:
+                        max_non_empty_count = non_empty_count
+                        most_non_empty_list = matches
+                        most_non_empty_list=  [' '.join(word.title() for word in element.split()) for element in most_non_empty_list]
+                        for word in most_non_empty_list:
+                            if word in newList:
+                                AnswerList.append(word)
+                                for key , value in actual_dict.items():
+                                    for j in AnswerList:
+                                        if value == j:
+                                            AnswerDict[key] = j
+                                    if re.search(key.replace('_', ' ').lower() , questionInput.lower()):
+                                        AnswerDict[key] = value
+        if AnswerDict:
+            r = requests.post("https://api.deepai.org/api/text-generator",{"text":str(AnswerDict)},headers={'api-key':DEEP_API_KEY})
+            genratedText = r.json()
+            itenary_answer=genratedText['output']
+            assert itenary_answer
+            answer_found=True
+        if answer_found:
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer)
+            date_time = conversation.date
+            datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
+            formatted_time = datetime_obj.strftime("%H:%M:%S")
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id},status=status.HTTP_200_OK)
+        else:
+            return Response({"Answer":"Chatgpt Integeration pending"},status=status.HTTP_204_NO_CONTENT)
 
-        # for i in dataFromTable:
-        #     for j , l in i.items():
-        #         print(l)
+class AnswerSuggestion(APIView):
+    authentication_classes=[JWTAuthentication]
+    def put(self, request, id):
+        suggestion=request.data.get('suggestion')
+        if UserActivity.objects.get(id=id):
+            UserActivity.objects.update(answer=suggestion)
+            return Response({"Result":"Answer's suggestion Updated"},status=status.HTTP_200_OK)
+        else:
+            return Response({"Result":"Result not found for this question"},status=status.HTTP_204_NO_CONTENT)
 
-        #     answer=x["answer"]
-        #     TopicName=(x['topic_name'])
-        #     data_dict={"Topic":TopicName,"question":question,"answer":answer}
-        #     array.append(data_dict)
-            
-        # Questions=[dict['question'] for dict in array]
-        # Tokenizer data.
-        # MAX_NB_WORDS = 10000
-        # MAX_SEQUENCE_LENGTH =200
-        # EMBEDDING_DIM = 100
-        # oov_token = "<OOV>"
-        # tokenizer = Tokenizer(num_words=MAX_NB_WORDS,filters='!"#$%&()*+,-./:;<=>?@[\]^_`{|}~', oov_token = "<OOV>", lower=True)
-        # # tokenizer.fit_on_texts(Questions)
-        # word_index = tokenizer.word_index
-        
-        # # get the json labels
-        # with open(self.cluster_label_path, "rb") as file:
-        #     cluster_labels = pickle.load(file)
-        # # Load Saved Model.
-        # json_file = open(self.model_path, 'r')
-        # loaded_model_json = json_file.read()
-        # json_file.close()
-        # loaded_model = model_from_json(loaded_model_json)
-        # loaded_model.load_weights(self.model_weight_path)
-        # # Take user input and preprocess as input
-        # user_input=request.data.get("query")
-        # print(user_input)
-        # input=spell(user_input)
-        # value_found=details_dict.get(input.lower().strip())
-        # clean_user_input=self.clean_func.clean_text(input)
-        # new_input = tokenizer.texts_to_sequences([clean_user_input])
-        # new_input = pad_sequences(new_input, maxlen=MAX_SEQUENCE_LENGTH) 
-        
-        # # Make Prediction
-        # pred =loaded_model.predict(new_input)
-        # databasew_match=pred, cluster_labels[np.argmax(pred)]
-        # result=databasew_match[1]
-        # # Get the answer based on the question.
-        # # filter_data = [dict for dict in array if dict["Topic"].strip()== result.strip()]
-        # get_all_questions=[dict['question'] for dict in filter_data] 
-        # vectorizer = TfidfVectorizer()
-        # vectorizer.fit(get_all_questions)
-        # question_vectors = vectorizer.transform(get_all_questions)                                  # 2. all questions
-        # input_vector = vectorizer.transform([clean_user_input])
-        # # check the similarity of the model            answerPredict = self.clean_text(newList)
+class AddQuestionAnswer(APIView):
+    authentication_classes=[JWTAuthentication]
+    def post(self , request):
+        question = request.data.get('question')
+        answer = request.data.get('answer')
+        createSuggestion = UserActivity.objects.create(user_id = request.user.id ,questions=question, answer=answer)
+        createSuggestion.save()
+        return Response({"data":"Suggestion Added Successfully !"})
 
-        # similarity_scores = question_vectors.dot(input_vector.T).toarray().flatten()  # Ensure 1-dimensional array
-        # max_sim_index = np.argmax(similarity_scores)
-        # similarity_percentage = similarity_scores[max_sim_index] * 100
-        # if (similarity_percentage)>=65:
-        #     # answer = filter_data[max_sim_index]['answer'] 
-        #     # conversation=UserActivity.objects.create(user_id=request.user.id,questions=input,answer=answer)
-        #     # conversation.save()
-        #     response_data = {
-        #         "Question":input,
-        #         "Label": result,
-        #         # "Answer": answer,
-            
-        #         "AnswerSource":"This Response Done From Database"}
-        # elif value_found:
-        #         response_data = {"Question":input,"Answer": value_found}
-        #         return Response({"data":response_data,"code":200})
-        # else:
-        #     return Response({"Message":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
-            
-        # return Response({"data":response_data,"code":200})
-     
+
 # Api for get user history   
 class GetUserHistory(APIView):
     authentication_classes=[JWTAuthentication]
     def get(self,request):
-        
         history=UserActivity.objects.filter(user_id=request.user.id).values()
-        print(history)
-        return Response({"data":history,"code":200})
+        response=[]
+        for user in history:
+            date_time=user.get("date")
+            if date_time:
+                user["time"]=date_time.strftime("%H:%M:%S")
+            response.append(user)
+        return Response({"data":response},status=status.HTTP_200_OK)
     
 # Api for get CSV files
 class GetAlluploadedcsv(APIView):

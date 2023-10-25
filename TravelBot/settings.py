@@ -176,7 +176,7 @@ SIMPLE_JWT = {
 
     "JTI_CLAIM": "jti"
 }
-
+DEEP_API_KEY = '2bd75f42-62c7-4e95-ae4b-57ba666a64f0'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:8000",   

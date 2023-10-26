@@ -23,7 +23,6 @@ urlpatterns = [
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
     path('topics/', TopicsView.as_view(), name='topics'),
-    path('delete-chat/<int:id>/', DeleteChatView.as_view(),name='delete-chat'),
 
 ]
 if settings.DEBUG:

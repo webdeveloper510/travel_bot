@@ -35,7 +35,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
     fields = ['id', 'email', 'firstname','lastname']
     
 
-
 class TravelBotDataSerializer(serializers.ModelSerializer):
     class Meta:
         model= TravelBotData

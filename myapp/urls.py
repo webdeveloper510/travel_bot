@@ -22,8 +22,9 @@ urlpatterns = [
     path('userstatus/<int:id>/', ActiveInactive.as_view(), name='userstatus'),
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
-]
+    path('topics/', TopicsView.as_view(), name='topics'),
+    path('delete-chat/<int:id>/', DeleteChatView.as_view(),name='delete-chat'),
 
+]
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,
-                          document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

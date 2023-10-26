@@ -127,15 +127,22 @@ class CsvFileData(models.Model):
     csvfile=models.FileField(upload_to="user_csv/",blank=True,null=True)
     csvname=models.CharField(max_length=200,blank=True,null=True)
     
-    
+class Topics(models.Model):
+    user=models.ForeignKey(User , on_delete=models.CASCADE)
+    name=models.CharField(max_length=300,blank=True,null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
 class UserActivity(models.Model):
     user=models.ForeignKey(User , on_delete=models.CASCADE)
     date=models.DateTimeField(auto_now_add=True)
     questions=models.TextField(max_length=1000)
     answer=models.TextField(max_length=1000)
     topic=models.TextField(max_length=1000)
+    topic_id=models.ForeignKey(Topics , on_delete=models.CASCADE)
     
 # class QuestionAndAnswer(models.Model):
 #     topic=models.TextField(max_length=1000)
 #     question=models.TextField(max_length=1000)
 #     answer=models.TextField(max_length=1000)
+

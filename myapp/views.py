@@ -41,8 +41,8 @@ from fuzzywuzzy import process
 # import nltk
 import re
 # import string
-
 import pke
+from django.shortcuts import get_object_or_404
 
 # initialize keyphrase extraction model, here TopicRank
 extractor = pke.unsupervised.TopicRank()
@@ -217,6 +217,11 @@ class prediction(APIView):
         AnswerList = []
         answer_found = False
         questionInput = request.data.get('query')
+        topic_id = request.data.get('topic_id')
+        if not topic_id:
+            return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
+        if not Topics.objects.filter(id=topic_id).exists():
+            return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
         input=spell(questionInput)
         value_found=details_dict.get(input.lower().strip())
         if value_found:
@@ -269,7 +274,7 @@ class prediction(APIView):
 
             answer_found=True
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
@@ -379,5 +384,41 @@ class CsvDeleteView(APIView):
         except Exception as e:
             return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
 
+class TopicsView(APIView):
+    authentication_classes=[JWTAuthentication]
 
+    def post(self, request):
+        try:
+            user = UserProfileSerializer(request.user)
+            name = request.data.get('name')
+            if not name:
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter name'})
+            data = Topics.objects.create(user_id=user.data['id'], name=name)
+            return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': {'id':data.id, 'name':data.name, 'user_id':data.user_id}})
+        except Exception as e:
+            return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
+
+    def get(self, request):   #to get data from useractivity table with topic id
+        try:
+            user = UserProfileSerializer(request.user)
+            topic_id = request.data.get('topic_id')
+            if not topic_id:
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
+            if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Topic_id does not exists!'})
+            data = UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).values('user_id','date','questions','answer','topic','topic_id_id')
+            return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': list(data)})
+        except Exception as e:
+            return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
+
+#Delete chat from useractivity model with id            
+class DeleteChatView(APIView):
+
+    def delete(self, request, id):
+        try:
+            chat = UserActivity.objects.get(id=id)
+            chat.delete()
+            return Response({'status':status.HTTP_204_NO_CONTENT,'message':"Deleted Successfully"})
+        except Exception as e:
+            return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
         

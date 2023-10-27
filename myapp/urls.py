@@ -19,6 +19,7 @@ urlpatterns = [
     path('userdelete/<int:id>/', DeleteUser.as_view(),name='userdelete'),
     path('suggestion/<int:id>/', AnswerSuggestion.as_view(),name='answersuggestion'),
     path('profileupdate/<int:id>/', ProfileUpdate.as_view(), name='profileupdate'),
+    path('getchat/<int:topic_id>/', ChatDetailsByID.as_view(), name='getchat'),
     path('userstatus/<int:id>/', ActiveInactive.as_view(), name='userstatus'),
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),

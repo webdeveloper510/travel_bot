@@ -226,24 +226,7 @@ class prediction(APIView):
             exc_type, exc_obj, exc_tb = sys.exc_info()
             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
 
-    def get(self, request):   #to get data from useractivity table with topic id
-        try:
-            user = UserProfileSerializer(request.user)
-            topic_id = request.data.get('topic_id')
-            if not topic_id:
-                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
-            if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
-                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Chat does not exists related to this topic!'})
-            data = UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).values('user_id','date','questions','answer','topic','topic_id_id')
-            for i in data:
-                i.update(time=i['date'].time())
-                i['date']  = i['date'].date()    
-                i['topic_id']  = i['topic_id_id'] 
-                del i['topic_id_id']  
-            return Response({'status':status.HTTP_200_OK, "message":"Success", 'data': list(data)})
-        except Exception as e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
+
 
         
     def post(self, request,format=None):
@@ -256,15 +239,21 @@ class prediction(APIView):
         answer_found = False
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
-        if not topic_id:
-            return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
-        if not Topics.objects.filter(id=topic_id).exists():
-            return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
+        if not Topics.objects.filter(user_id=request.user.id).exists():
+            data = Topics.objects.create(user_id=request.user.id, name=questionInput)
+            topic_id = data.id
+        else:
+            if not topic_id:
+                return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
+            if not Topics.objects.filter(id=topic_id).exists():
+                return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
         input=spell(questionInput)
+
         value_found=details_dict.get(input.lower().strip())
+        
         if value_found:
             itenary_answer=value_found
-            answer_found = True
+            answer_found = True 
         else:
             itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')
@@ -318,7 +307,32 @@ class prediction(APIView):
             formatted_time = datetime_obj.strftime("%H:%M:%S")
             return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic},status=status.HTTP_200_OK)
         else:
-            return Response({"Answer":"Chatgpt Integeration pending"},status=status.HTTP_204_NO_CONTENT)
+            return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChatDetailsByID(APIView):
+    authentication_classes=[JWTAuthentication]
+
+    def get(self, request , topic_id):   #to get data from useractivity table with topic id
+        try:
+            user = UserProfileSerializer(request.user)
+            # topic_id = request.data.get('topic_id')
+            # print(topic_id)
+            if not topic_id:
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
+            if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
+                return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Chat does not exists related to this topic!'})
+            data = UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).values('id','user_id','date','questions','answer','topic','topic_id_id')
+            for i in data:
+                i.update(time=i['date'].time())
+                i['date']  = i['date'].date()    
+                i['topic_id']  = i['topic_id_id'] 
+                del i['topic_id_id']  
+            return Response({'status':status.HTTP_200_OK, "message":"Success", 'data': list(data)})
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
+
 
 class AnswerSuggestion(APIView):
     authentication_classes=[JWTAuthentication]
@@ -336,12 +350,17 @@ class AddQuestionAnswer(APIView):
     def post(self , request):
         question = request.data.get('question')
         answer = request.data.get('answer')
+        topic_id = request.data.get('topic_id')
+        if not topic_id:
+            return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"Please enter topic_id"})
+        if not Topics.objects.filter(id=topic_id).exists():
+            return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"topic_id does not exists!"})
         extractor.load_document(input=answer, language='en')
         extractor.candidate_selection()
         extractor.candidate_weighting()
         keyphrases = extractor.get_n_best(n=10)
         label = keyphrases[0][0]
-        createSuggestion = UserActivity.objects.create(user_id = request.user.id ,questions=question, answer=answer, topic=label)
+        createSuggestion = UserActivity.objects.create(user_id = request.user.id ,questions=question, answer=answer, topic=label , topic_id_id = topic_id)
         createSuggestion.save()
         return Response({"data":"Suggestion Added Successfully !"})
 
@@ -433,14 +452,14 @@ class TopicsView(APIView):
             if not name:
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter name'})
             data = Topics.objects.create(user_id=user.data['id'], name=name)
-            return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': {'id':data.id, 'name':data.name, 'user_id':data.user_id}})
+            return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': {'id':data.id, 'name':data.name, 'user_id':data.user_id, "created_at":data.created_at.date()}})
         except Exception as e:
             return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})
 
     def get(self, request):   #to get topics list of user
         try:
             user = UserProfileSerializer(request.user)
-            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name')
+            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name' , 'created_at__date')
             return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': list(data)})
         except Exception as e:
             return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})

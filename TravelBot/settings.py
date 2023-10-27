@@ -94,13 +94,13 @@ DATABASES = {
         'ENGINE':   'django.db.backends.mysql',
         'NAME':     'TravelData',
         "USER":     "root",
-        # "PASSWORD": "",
-        "PASSWORD": "admin@123",
+        "PASSWORD": "1234",
+        # "PASSWORD": "admin@123",
         "HOST": "localhost",
         "PORT":"3306",
-        'OPTIONS': {
-            'read_default_file': '/opt/lampp/etc/my.cnf',
-        }
+        # 'OPTIONS': {
+        #     'read_default_file': '/opt/lampp/etc/my.cnf',
+        # }
         
     }
 }
@@ -184,5 +184,4 @@ CORS_ALLOWED_ORIGINS = [
     "http://16.171.134.22:8000",
     "http://16.171.134.22",
     "http://127.0.0.1:3000",   
-
 ]

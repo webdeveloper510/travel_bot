@@ -361,10 +361,14 @@ class AddQuestionAnswer(APIView):
         question = request.data.get('question')
         answer = request.data.get('answer')
         topic_id = request.data.get('topic_id')
-        if not topic_id:
-            return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"Please enter topic_id"})
-        if not Topics.objects.filter(id=topic_id).exists():
-            return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"topic_id does not exists!"})
+        if not Topics.objects.filter(user_id=request.user.id).exists():
+            data = Topics.objects.create(user_id=request.user.id, name='admin suggestion')
+            topic_id = data.id
+        else:
+            if not topic_id:
+                return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"Please enter topic_id"})
+            if not Topics.objects.filter(id=topic_id).exists():
+                return Response({"status":status.HTTP_400_BAD_REQUEST, "message":"topic_id does not exists!"})
         extractor.load_document(input=answer, language='en')
         extractor.candidate_selection()
         extractor.candidate_weighting()

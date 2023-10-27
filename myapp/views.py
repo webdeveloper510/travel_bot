@@ -252,18 +252,18 @@ class prediction(APIView):
 
         find_answer=UserActivity.objects.filter(questions=questionInput,user=request.user.id,topic_id=topic_id).last()
         if find_answer:
-           
+        
             value_found= find_answer.answer
             itenary_answer=value_found
             answer_found = True 
 
-        elif find_answer == None:
+        # elif find_answer == None:
            
-            value_found=details_dict.get(input.lower().strip())
-         
-            if value_found:
-                itenary_answer=value_found
-                answer_found = True 
+        value_found=details_dict.get(input.lower().strip())
+        
+        if value_found:
+            itenary_answer=value_found
+            answer_found = True 
         else:
             itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')
@@ -490,3 +490,20 @@ class TopicsView(APIView):
             exc_type, exc_obj, exc_tb = sys.exc_info()
             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
 
+class UpdateTopicsView(APIView):
+    authentication_classes=[JWTAuthentication]
+    def put(self, request, topic_id):   
+        try:
+            # topic_id = request.data.get('topic_id')
+            name = request.data.get('name')
+            if not topic_id:
+                return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Please enter topic_id"})
+            if not Topics.objects.filter(id=topic_id).exists():
+                return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Invalid topic_id"})
+            # user = UserProfileSerializer(request.user)
+            Topics.objects.filter(id=topic_id,user_id=request.user.id).update(name=name)
+            data = get_object_or_404(Topics, id=topic_id)
+            return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': {'id':data.id, 'user_id':request.user.id, 'name':data.name}})
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})

@@ -24,6 +24,7 @@ urlpatterns = [
     path('changepassword/', UserChangePasswordView.as_view(), name='changepassword'),
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
     path('topics/', TopicsView.as_view(), name='topics'),
+    path('update-topics/<int:topic_id>/', UpdateTopicsView.as_view(), name='topics'),
 
 ]
 if settings.DEBUG:

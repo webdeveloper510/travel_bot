@@ -249,11 +249,21 @@ class prediction(APIView):
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
         input=spell(questionInput)
 
-        value_found=details_dict.get(input.lower().strip())
-        
-        if value_found:
+
+        find_answer=UserActivity.objects.filter(questions=questionInput,user=request.user.id,topic_id=topic_id).last()
+        if find_answer:
+           
+            value_found= find_answer.answer
             itenary_answer=value_found
             answer_found = True 
+
+        elif find_answer == None:
+           
+            value_found=details_dict.get(input.lower().strip())
+         
+            if value_found:
+                itenary_answer=value_found
+                answer_found = True 
         else:
             itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')

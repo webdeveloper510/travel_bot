@@ -333,33 +333,207 @@ class prediction(APIView):
                     if similarity_scores[ChunkText.index(sentence)] > similarity_threshold:
                         final_answer = sentence
                         final_Row = actual_dict
+                        
                         dict={
                             "final_answer":final_answer,
                             "score":similarity_scores[ChunkText.index(sentence)],
-                            "row":actual_dict,
+                            # "row":actual_dict,
                             "VendorName":actual_dict['Vendor'],
                         }
                         siml.append(dict)                            
                         # break
-            # print(siml)
+       
             score_list=[]
             for i in siml:
                 score_list.append(i["score"])
+            print(score_list)
+            if score_list:
+                val=max(score_list)  
+                list_data=[]
+                set_data=[]
+                for i in siml:
+
+                    if i['score'] == val:
+                        print("----------",i["final_answer"].split(" "))
+                        # print("ssssss22",max(score_list))
+                        # print(i['score'])
+                        # print(i['final_answer'])
+                        for data in field_names:
+                    
+                            if data.replace('_', '').lower() in i["final_answer"].split(" "):
+                            
+                                get_value=TravelBotData.objects.filter(Vendor=i['VendorName']).values(data)[0]
+                        
+                                AnswerDict[data]=get_value[data]
+                                list_data.append(get_value)
+                    
+                        AnswerDict["Vendor"]=i["VendorName"]
+
+
+                        for i_val in field_names:
+                        
+                    
+                            for getHead in inputList:
+                                if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+                                        set_data.append(i_val)
+                                        # for i_key in AnswerDict.keys():
+                                        
+                                        #     if i_val !=i_key:
+                                        #         print("telll mw",i_val)
+                                        
+                        # AnswerDict['Values'] = i['final_answer']
+                        # AnswerDict['Vendor'] = i['VendorName']
+            
+
+            # for keys,values in AnswerDict.items():
+                for keys in set_data:
+                    if keys not in list(AnswerDict.keys()):
+                    
+                        get_value2=TravelBotData.objects.filter(Vendor=i['VendorName']).values(keys)[0]
+                        print(get_value2)
+                        AnswerDict[keys]=get_value2[keys]
+                    
+            else:   
+                AnswerDict
+     
+                 
+        
+        print("Sssssss",AnswerDict)
+        if vendor_select :
+            
+            if vendor_select == AnswerDict["Vendor"]:
+                print(AnswerDict)
+                # for data in field_names:
+                
+                #     if data.replace('_', '').lower() in i["final_answer"].split(" "):
+                        
+                #         get_value=TravelBotData.objects.filter(Vendor=i['VendorName']).values(data)[0]
+                    
+                #         AnswerDict[data]=get_value[data]
+                #         list_data.append(get_value)
+                 
+                # AnswerDict["Vendor"]=i["VendorName"]
+
+
+                # for i_val in field_names:
+                    
+            
+                #     for getHead in inputList:
+                #         if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+                #                 set_data.append(i_val)
+                              
+                # for keys in set_data:
+                #     if keys not in list(AnswerDict.keys()):
+                    
+                #         get_value2=TravelBotData.objects.filter(Vendor=i['VendorName']).values(keys)[0]
+                #         print(get_value2)
+                #         AnswerDict[keys]=get_value2[keys]
+            elif vendor_select != AnswerDict["Vendor"]:
+                print(AnswerDict)
+                    
+                  
+        else:
+            siml=[]
+            itenary_answer = None 
+            service = TravelBotData.objects.all().order_by('id')
+            for i in service:
+                newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
+                
+                new_genrate_for_test = [element.strip().lower() for element in newList if element != 'nan']
+                all_fields = TravelBotData._meta.get_fields()
+                field_names = [field.name for field in all_fields]
+                del field_names[0]
+                count = 0
+
+                for keys in field_names:
+                    if newList[count]!="nan":
+                        actual_dict[keys] = newList[count]
+                    count += 1 
+
+                cleaned_sentences=self.text_cleaning(str(actual_dict))
+                ChunkText = self.chunk_text(cleaned_sentences , chunk_size)
+                cleaned_sentences_with_stopwords=[self.remove_stop_words(sentences) for sentences in ChunkText]
+                clean_question=self.text_cleaning(questionInput)
+                question=self.remove_stop_words(clean_question)
+                #---------------------------vectorizer = TfidfVectorizer()-------------------------------------->
+                vectorizer = TfidfVectorizer()
+                tfidf_matrix = vectorizer.fit_transform(cleaned_sentences_with_stopwords)
+                input_vector = vectorizer.transform([question])
+                
+                # find the similarity 
+                similarity_scores = tfidf_matrix.dot(input_vector.T).toarray().flatten()
+
+                sorted_indices = np.argsort(similarity_scores)[::-1]  # Sorting in descending order
+                similarity_threshold = 0.4
+                similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
+                similar_score = [similarity_scores[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
+                final_answer = ""
+                final_Row = ""
+                for sentence in similar_sentences:
+                    if similarity_scores[ChunkText.index(sentence)] > similarity_threshold:
+                        final_answer = sentence
+                        final_Row = actual_dict
+                        
+                        dict={
+                            "final_answer":final_answer,
+                            "score":similarity_scores[ChunkText.index(sentence)],
+                            # "row":actual_dict,
+                            "VendorName":actual_dict['Vendor'],
+                        }
+                        siml.append(dict)                            
+                        # break
+       
+            score_list=[]
+            for i in siml:
+                score_list.append(i["score"])
+            print(score_list)
+            val=max(score_list)  
+            list_data=[]
+            set_data=[]
             for i in siml:
 
-                if i['score'] == max(score_list):
-                    print(i['score'])
-                    print(i['final_answer'])
-                    print(i['VendorName'])
-                    # for key , val in i['row'].items():
-        #             if i['score'] == max(score_list):
-                        # for getHead in inputList:
-                        #     if key.replace('_', ' ').lower().find(getHead)!=-1:
-                        #             AnswerDict[key] = val
-                        #             print(AnswerDict)
-                    AnswerDict['Values'] = i['final_answer']
-                    AnswerDict['Vendor'] = i['VendorName']
-        print("--------------->>>>",AnswerDict)
+                if i['score'] == val:
+                    print("----------",i["final_answer"].split(" "))
+                    # print("ssssss22",max(score_list))
+                    # print(i['score'])
+                    # print(i['final_answer'])
+                    for data in field_names:
+                
+                        if data.replace('_', '').lower() in i["final_answer"].split(" "):
+                          
+                            get_value=TravelBotData.objects.filter(Vendor=i['VendorName']).values(data)[0]
+                     
+                            AnswerDict[data]=get_value[data]
+                            list_data.append(get_value)
+                 
+                    AnswerDict["Vendor"]=i["VendorName"]
+
+
+                    for i_val in field_names:
+                      
+                
+                        for getHead in inputList:
+                            if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+                                    set_data.append(i_val)
+                                    # for i_key in AnswerDict.keys():
+                                       
+                                    #     if i_val !=i_key:
+                                    #         print("telll mw",i_val)
+                                    
+                    # AnswerDict['Values'] = i['final_answer']
+                    # AnswerDict['Vendor'] = i['VendorName']
+        
+         
+            # for keys,values in AnswerDict.items():
+            for keys in set_data:
+                if keys not in list(AnswerDict.keys()):
+                   
+                    get_value2=TravelBotData.objects.filter(Vendor=i['VendorName']).values(keys)[0]
+                    print(get_value2)
+                    AnswerDict[keys]=get_value2[keys]           
+
+
+        
         label = ''            
         VendorName = ''
         if AnswerDict:

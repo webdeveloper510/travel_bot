@@ -44,14 +44,13 @@ import re
 import pke
 from django.shortcuts import get_object_or_404
 import sys
-
-
+from textblob import TextBlob
 # initialize keyphrase extraction model, here TopicRank
 extractor = pke.unsupervised.TopicRank()
 
 
 url="http://127.0.0.1:8000/static/media/"
-# url="http://16.171.134.22:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 
 # Create your views here.
 
@@ -225,20 +224,56 @@ class prediction(APIView):
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
-
-
-
-        
+    
+    
+    def text_cleaning(self ,text):
+        sentence = text.lower()
+        sentence = re.sub(r'[^a-z0-9\s]', '', sentence)                                                 # REMOVE THE EXTRA SPACES
+        all_text= ' '.join(sentence.split())
+        return all_text
+    def chunk_text(self , text, chunk_size):
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + chunk_size
+            if end > len(text):
+                end = len(text)
+            else:
+                while end < len(text) and text[end] != ' ':
+                    end -= 1
+            chunks.append(text[start:end])
+            start = end + 1
+        return chunks
+    # make a function for removing the unneccsary words from the text
+    def remove_stop_words(self ,text):
+        words = nltk.word_tokenize(text)
+        stop_words = set(stopwords.words('english'))
+        filtered_words = [word for word in words if word not in stop_words]
+        filtered_text = ' '.join(filtered_words)
+        return filtered_text
+       
     def post(self, request,format=None):
         matched_items = []
+        matchingList = []
+        no_matching = []
+        h_matching = []
         max_non_empty_count = 0
         most_non_empty_list = None
         actual_dict = {}
         AnswerDict = {}
         AnswerList = []
+        keysGet = {}
         answer_found = False
+        FirstSimilarVendor = ''
+        chunk_size = 100
+        # =================================================================
+
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
+        vendor_select=request.data.get('vendor_name')
+        inputList = questionInput.split(" ")
+        # =================================================================
+
         if not Topics.objects.filter(user_id=request.user.id).exists():
             data = Topics.objects.create(user_id=request.user.id, name=questionInput)
             topic_id = data.id
@@ -247,58 +282,91 @@ class prediction(APIView):
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
             if not Topics.objects.filter(id=topic_id).exists():
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
-        input=spell(questionInput)
-
-
-        find_answer=UserActivity.objects.filter(questions=questionInput,user=request.user.id,topic_id=topic_id).last()
-        if find_answer:
-        
-            value_found= find_answer.answer
-            itenary_answer=value_found
-            answer_found = True 
-
-        # elif find_answer == None:
-           
+ 
+        input=spell(questionInput)           
         value_found=details_dict.get(input.lower().strip())
-        
         if value_found:
             itenary_answer=value_found
             answer_found = True 
         else:
+            siml=[]
             itenary_answer = None 
+            # if vendor_select:
+            #     FoundDataRow = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
+
+            # else:
             service = TravelBotData.objects.all().order_by('id')
             for i in service:
                 newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
+                
                 new_genrate_for_test = [element.strip().lower() for element in newList if element != 'nan']
                 all_fields = TravelBotData._meta.get_fields()
                 field_names = [field.name for field in all_fields]
                 del field_names[0]
                 count = 0
+
                 for keys in field_names:
-                    actual_dict[keys] = newList[count]
-                    count += 1  
-                resulting_string = '|'.join(new_genrate_for_test)
-                pattern = re.compile(rf'{resulting_string}')
-                matches = re.findall(pattern, questionInput.lower())
-                if matches:
-                    if matches not in matched_items:
-                        matched_items.append(matches)
-                    non_empty_count = sum(1 for item in matches if item.strip())
-                    if non_empty_count > max_non_empty_count:
-                        max_non_empty_count = non_empty_count
-                        most_non_empty_list = matches
-                        most_non_empty_list=  [' '.join(word.title() for word in element.split()) for element in most_non_empty_list]
-                        for word in most_non_empty_list:
-                            if word in newList:
-                                AnswerList.append(word)
-                                for key , value in actual_dict.items():
-                                    for j in AnswerList:
-                                        if value == j:
-                                            AnswerDict[key] = j
-                                    if re.search(key.replace('_', ' ').lower() , questionInput.lower()):
-                                        AnswerDict[key] = value
-        label = ''
+                    if newList[count]!="nan":
+                        actual_dict[keys] = newList[count]
+                    count += 1 
+
+                cleaned_sentences=self.text_cleaning(str(actual_dict))
+                ChunkText = self.chunk_text(cleaned_sentences , chunk_size)
+                cleaned_sentences_with_stopwords=[self.remove_stop_words(sentences) for sentences in ChunkText]
+                clean_question=self.text_cleaning(questionInput)
+                question=self.remove_stop_words(clean_question)
+                #---------------------------vectorizer = TfidfVectorizer()-------------------------------------->
+                vectorizer = TfidfVectorizer()
+                tfidf_matrix = vectorizer.fit_transform(cleaned_sentences_with_stopwords)
+                input_vector = vectorizer.transform([question])
+                
+                # find the similarity 
+                similarity_scores = tfidf_matrix.dot(input_vector.T).toarray().flatten()
+
+                sorted_indices = np.argsort(similarity_scores)[::-1]  # Sorting in descending order
+                similarity_threshold = 0.4
+                similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
+                similar_score = [similarity_scores[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
+                final_answer = ""
+                final_Row = ""
+                for sentence in similar_sentences:
+                    if similarity_scores[ChunkText.index(sentence)] > similarity_threshold:
+                        final_answer = sentence
+                        final_Row = actual_dict
+                        dict={
+                            "final_answer":final_answer,
+                            "score":similarity_scores[ChunkText.index(sentence)],
+                            "row":actual_dict,
+                            "VendorName":actual_dict['Vendor'],
+                        }
+                        siml.append(dict)                            
+                        # break
+            # print(siml)
+            score_list=[]
+            for i in siml:
+                score_list.append(i["score"])
+            for i in siml:
+
+                if i['score'] == max(score_list):
+                    print(i['score'])
+                    print(i['final_answer'])
+                    print(i['VendorName'])
+                    # for key , val in i['row'].items():
+        #             if i['score'] == max(score_list):
+                        # for getHead in inputList:
+                        #     if key.replace('_', ' ').lower().find(getHead)!=-1:
+                        #             AnswerDict[key] = val
+                        #             print(AnswerDict)
+                    AnswerDict['Values'] = i['final_answer']
+                    AnswerDict['Vendor'] = i['VendorName']
+        print("--------------->>>>",AnswerDict)
+        label = ''            
+        VendorName = ''
         if AnswerDict:
+            for Vnd , Oer in AnswerDict.items():
+                if Vnd == "Vendor":
+                    VendorName = Oer
+                    
             r = requests.post("https://api.deepai.org/api/text-generator",{"text":str(AnswerDict)},headers={'api-key':DEEP_API_KEY})
             genratedText = r.json()
             itenary_answer=genratedText['output']
@@ -315,9 +383,15 @@ class prediction(APIView):
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic},status=status.HTTP_200_OK)
+            if "Vendor" in AnswerDict.keys():
+                return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorName},status=status.HTTP_200_OK)
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
+
         else:
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
+
+
+
 
 
 class ChatDetailsByID(APIView):

@@ -628,6 +628,7 @@ class prediction(APIView):
         # =================================================================
 
         questionInput = request.data.get('query')
+        SaveActualQuestion = questionInput
         val=questionInput.split(" ")
         if "visit" in val:
                 
@@ -678,11 +679,11 @@ class prediction(APIView):
                         actual_dict[keys] = newList[count]
                     count += 1 
 
-                cleaned_sentences=self.text_cleaning(str(actual_dict))
-                print(cleaned_sentences)
+                # cleaned_sentences=self.text_cleaning(str(actual_dict))
+                # print(cleaned_sentences , "--------------------------")
                 
 
-                ChunkText = self.chunk_text(cleaned_sentences , chunk_size)
+                ChunkText = self.chunk_text(str(actual_dict) , chunk_size)
                 cleaned_sentences_with_stopwords=[self.remove_stop_words(sentences) for sentences in ChunkText]
             
                 clean_question=self.text_cleaning(questionInput)
@@ -881,7 +882,7 @@ class prediction(APIView):
 
             answer_found=True
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=SaveActualQuestion,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
@@ -890,7 +891,7 @@ class prediction(APIView):
             return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
 
         else:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=SaveActualQuestion,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
 
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
 

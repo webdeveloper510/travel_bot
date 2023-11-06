@@ -704,7 +704,7 @@ class prediction(APIView):
                 similarity_scores = tfidf_matrix.dot(input_vector.T).toarray().flatten()
 
                 sorted_indices = np.argsort(similarity_scores)[::-1]  # Sorting in descending order
-                similarity_threshold = 0.35
+                similarity_threshold = 0.3
                 similar_rows = []
 
                 similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]

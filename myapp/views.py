@@ -679,6 +679,7 @@ class prediction(APIView):
                     count += 1 
 
                 cleaned_sentences=self.text_cleaning(str(actual_dict))
+                print(cleaned_sentences)
                 
 
                 ChunkText = self.chunk_text(cleaned_sentences , chunk_size)
@@ -687,7 +688,7 @@ class prediction(APIView):
                 clean_question=self.text_cleaning(questionInput)
                 
                 question=self.remove_stop_words(clean_question)
-                
+                print(question)
               
                 
                 #---------------------------vectorizer = TfidfVectorizer()-------------------------------------->
@@ -710,11 +711,17 @@ class prediction(APIView):
                 similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 similar_score = [similarity_scores[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 final_answer = ""
-                final_Row = ""
+                final_Row = {}
                 for sentence in similar_sentences:
                     if similarity_scores[ChunkText.index(sentence)] > similarity_threshold:
                         final_answer = sentence
                         final_Row = actual_dict
+                        final_answer = sentence
+                        final_Row = actual_dict.copy()
+                        final_Row["final_answer"] = final_answer
+                        final_Row["score"] = similarity_scores[ChunkText.index(sentence)]
+                        final_Row["VendorName"] = actual_dict['Vendor']
+                        similar_rows.append(final_Row)
                         
                         
                         dict={
@@ -781,7 +788,8 @@ class prediction(APIView):
             else:   
                 AnswerDict
 
-        print("=--=44444444444",AnswerDict)
+        print("=--=-----------",AnswerDict)
+        print("=--=44444444444",similar_rows)
         column_dict={}
 
         # for i_val in field_names: 

@@ -814,8 +814,9 @@ class prediction(APIView):
 
 # Add the euro sign to the values of cost-related keys
             for key in cost_keys:
-                if AnswerDict[key] != 'nan':
-                    AnswerDict[key] = f'€{AnswerDict[key]}'
+                if key in list(AnswerDict.keys()):
+                    if AnswerDict[key] != 'nan':
+                        AnswerDict[key] = f'€{AnswerDict[key]}'
 
             # Display the updated dictionary
             print("sssssss",AnswerDict)

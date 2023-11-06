@@ -705,6 +705,8 @@ class prediction(APIView):
 
                 sorted_indices = np.argsort(similarity_scores)[::-1]  # Sorting in descending order
                 similarity_threshold = 0.35
+                similar_rows = []
+
                 similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 similar_score = [similarity_scores[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 final_answer = ""
@@ -713,6 +715,7 @@ class prediction(APIView):
                     if similarity_scores[ChunkText.index(sentence)] > similarity_threshold:
                         final_answer = sentence
                         final_Row = actual_dict
+                        
                         
                         dict={
                             "final_answer":final_answer,
@@ -754,7 +757,7 @@ class prediction(APIView):
                         
                     
                             for getHead in inputList:
-                                print(i_val.replace('_', ' ').lower().find(getHead)!=-1)
+            
                                 if i_val.replace('_', ' ').lower().find(getHead)!=-1:
                                         set_data.append(i_val)
                                         # for i_key in AnswerDict.keys():
@@ -773,6 +776,7 @@ class prediction(APIView):
                         get_value2=TravelBotData.objects.filter(Vendor=AnswerDict['Vendor']).values(keys)[0]
                         print("ssfdfgsdsdgfdsgfdg",get_value2)
                         AnswerDict[keys]=get_value2[keys]
+                    
                     
             else:   
                 AnswerDict
@@ -797,18 +801,19 @@ class prediction(APIView):
         #             column_dict[keys]=column_dict[keys]
 
         #AnswerDict[k_new] = mydict.pop(k_old)
-        print("Ssssssss",value_found)
+        print("--------------qqqqqqqqqqqqqqqq---",AnswerDict)
         if vendor_select and value_found==None:
           
             if AnswerDict:
                 if vendor_select == AnswerDict["Vendor"]:
                     print(AnswerDict)
+                   
             
                 elif vendor_select != AnswerDict["Vendor"]:
                     AnswerDict
                     
             else:
-                print(value_found)
+               
                 AnswerDict["Vendor"]=vendor_select
                 for i_val in field_names:
                         for getHead in inputList:
@@ -816,10 +821,15 @@ class prediction(APIView):
                                     set_data.append(i_val)
             
                 for keys in set_data:
-                        
+                    
                     get_value2=TravelBotData.objects.filter(Vendor=vendor_select).values(keys)[0]
                     
                     AnswerDict[keys]=get_value2[keys]
+                    print("ssssss",get_value2[keys])
+                    if str(get_value2[keys])=="nan":
+
+                        AnswerDict[keys]=0 
+                    print("ss222sss",AnswerDict)
 
 
                   
@@ -839,7 +849,7 @@ class prediction(APIView):
                         AnswerDict[key] = f'€{AnswerDict[key]}'
 
             # Display the updated dictionary
-            print("sssssss",AnswerDict)
+        
             for Vnd , Oer in AnswerDict.items():
                 if Vnd == "Vendor":
                     VendorName = Oer
@@ -858,7 +868,7 @@ class prediction(APIView):
                 label = keyphrases[0][0]
 
             label=AnswerDict["Vendor"]
-            print("333333",label)
+            
             assert itenary_answer
 
             answer_found=True

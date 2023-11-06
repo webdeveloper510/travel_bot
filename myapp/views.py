@@ -626,7 +626,7 @@ class prediction(APIView):
         FirstSimilarVendor = ''
         chunk_size = 100
         # =================================================================
-
+        #hello 
         questionInput = request.data.get('query')
         val=questionInput.split(" ")
         if "visit" in val:
@@ -763,6 +763,7 @@ class prediction(APIView):
                                         
                         # AnswerDict['Values'] = i['final_answer']
                         # AnswerDict['Vendor'] = i['VendorName']
+                        #hello
             
 
             # for keys,values in AnswerDict.items():

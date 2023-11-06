@@ -703,7 +703,7 @@ class prediction(APIView):
                 similarity_scores = tfidf_matrix.dot(input_vector.T).toarray().flatten()
 
                 sorted_indices = np.argsort(similarity_scores)[::-1]  # Sorting in descending order
-                similarity_threshold = 0.3
+                similarity_threshold = 0.35
                 similar_sentences = [ChunkText[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 similar_score = [similarity_scores[i] for i in sorted_indices if similarity_scores[i] > similarity_threshold]
                 final_answer = ""
@@ -777,6 +777,24 @@ class prediction(APIView):
                 AnswerDict
 
         print("=--=44444444444",AnswerDict)
+        column_dict={}
+
+        # for i_val in field_names: 
+        #     for getHead in inputList:
+        #         print(i_val.replace('_', ' ').lower().find(getHead)!=-1)
+        #         if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+        #                 set_data.append(i_val)
+                        
+
+
+        
+        #     for keys in set_data:
+        #         if keys not in list(AnswerDict.keys()):
+                    
+        #             get_value2=TravelBotData.objects.filter(Vendor=AnswerDict['Vendor']).values(keys)[0]
+        #             print("ssfdfgsdsdgfdsgfdg",get_value2)
+        #             column_dict[keys]=column_dict[keys]
+
         #AnswerDict[k_new] = mydict.pop(k_old)
 
         if vendor_select :

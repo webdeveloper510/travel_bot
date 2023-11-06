@@ -626,7 +626,7 @@ class prediction(APIView):
         FirstSimilarVendor = ''
         chunk_size = 100
         # =================================================================
-        #hello 
+
         questionInput = request.data.get('query')
         val=questionInput.split(" ")
         if "visit" in val:
@@ -654,6 +654,7 @@ class prediction(APIView):
         value_found=details_dict.get(input.lower().strip())
         if value_found:
             itenary_answer=value_found
+
             answer_found = True 
         else:
             siml=[]
@@ -763,7 +764,6 @@ class prediction(APIView):
                                         
                         # AnswerDict['Values'] = i['final_answer']
                         # AnswerDict['Vendor'] = i['VendorName']
-                        #hello
             
 
             # for keys,values in AnswerDict.items():
@@ -797,9 +797,9 @@ class prediction(APIView):
         #             column_dict[keys]=column_dict[keys]
 
         #AnswerDict[k_new] = mydict.pop(k_old)
-
-        if vendor_select :
-            print(vendor_select)
+        print("Ssssssss",value_found)
+        if vendor_select and value_found==None:
+          
             if AnswerDict:
                 if vendor_select == AnswerDict["Vendor"]:
                     print(AnswerDict)
@@ -807,23 +807,21 @@ class prediction(APIView):
                 elif vendor_select != AnswerDict["Vendor"]:
                     AnswerDict
                     
-                else:
-                    AnswerDict["Vendor"]==vendor_select
-                    all_fields = TravelBotData._meta.get_fields()
-                    field_names = [field.name for field in all_fields]
-                    for i_val in field_names:
-                            for getHead in inputList:
-                                if i_val.replace('_', ' ').lower().find(getHead)!=-1:
-                                        set_data.append(i_val)
-                
-                    for keys in set_data:
-                            
-                        get_value2=TravelBotData.objects.filter(Vendor=vendor_select).values(keys)[0]
-                        
-                        AnswerDict[keys]=get_value2[keys]
-
             else:
-                AnswerDict
+                print(value_found)
+                AnswerDict["Vendor"]=vendor_select
+                for i_val in field_names:
+                        for getHead in inputList:
+                            if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+                                    set_data.append(i_val)
+            
+                for keys in set_data:
+                        
+                    get_value2=TravelBotData.objects.filter(Vendor=vendor_select).values(keys)[0]
+                    
+                    AnswerDict[keys]=get_value2[keys]
+
+
                   
         else:
             AnswerDict

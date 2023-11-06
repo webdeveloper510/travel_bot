@@ -808,7 +808,9 @@ class prediction(APIView):
                     AnswerDict
                     
             else:
-                AnswerDict["Vendor"]=vendor_select
+                AnswerDict["Vendor"]==vendor_select
+                all_fields = TravelBotData._meta.get_fields()
+                field_names = [field.name for field in all_fields]
                 for i_val in field_names:
                         for getHead in inputList:
                             if i_val.replace('_', ' ').lower().find(getHead)!=-1:

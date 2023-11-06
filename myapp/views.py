@@ -807,22 +807,23 @@ class prediction(APIView):
                 elif vendor_select != AnswerDict["Vendor"]:
                     AnswerDict
                     
-            else:
-                AnswerDict["Vendor"]==vendor_select
-                all_fields = TravelBotData._meta.get_fields()
-                field_names = [field.name for field in all_fields]
-                for i_val in field_names:
-                        for getHead in inputList:
-                            if i_val.replace('_', ' ').lower().find(getHead)!=-1:
-                                    set_data.append(i_val)
-            
-                for keys in set_data:
+                else:
+                    AnswerDict["Vendor"]==vendor_select
+                    all_fields = TravelBotData._meta.get_fields()
+                    field_names = [field.name for field in all_fields]
+                    for i_val in field_names:
+                            for getHead in inputList:
+                                if i_val.replace('_', ' ').lower().find(getHead)!=-1:
+                                        set_data.append(i_val)
+                
+                    for keys in set_data:
+                            
+                        get_value2=TravelBotData.objects.filter(Vendor=vendor_select).values(keys)[0]
                         
-                    get_value2=TravelBotData.objects.filter(Vendor=vendor_select).values(keys)[0]
-                    
-                    AnswerDict[keys]=get_value2[keys]
+                        AnswerDict[keys]=get_value2[keys]
 
-
+            else:
+                AnswerDict
                   
         else:
             AnswerDict

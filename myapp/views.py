@@ -316,6 +316,7 @@ class prediction(APIView):
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
         vendor_select=request.data.get('vendor_name')
+
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
         input = spell(questionInput)
@@ -387,7 +388,8 @@ class prediction(APIView):
                         tag_ = tag.replace(" ", "_")
                         if tag_ in list(SelectedVendorData.keys()):
                             if SelectedVendorData[tag_]!="nan":
-                                AnswerDict[tag_]= SelectedVendorData[tag_]
+                                AnswerDict[tag]= SelectedVendorData[tag_]
+
                 for each_col_values in inputlist:
                     for ke_ , val_ in SelectedVendorData.items():
                         if each_col_values ==str(val_).lower():
@@ -396,6 +398,7 @@ class prediction(APIView):
 
                 if len(list(AnswerDict.keys()))>1:
                     AnswerDict
+                    #Checking for that Vendor :
                 else:
                     itenary_answer = None 
                     service = TravelBotData.objects.all().order_by('id')
@@ -446,8 +449,6 @@ class prediction(APIView):
                             if tag in list(random_rows[0].keys()):
                                 AnswerDict[tag]= random_rows[0][tag]
 
-                print("answer dfdgsdyisdgsdshdg---------.>>>>",AnswerDict)
-
             else:
                 itenary_answer = None 
                 service = TravelBotData.objects.all().order_by('id')
@@ -463,6 +464,7 @@ class prediction(APIView):
                     # Create a dictionary with column name and its values without none value.
                     count = 0
                     for keys in field_names:
+
                         keys_replace = keys.replace("_", " ")
                         if newList[count] != "nan" and newList[count] != " ":
                             actual_dict[keys_replace] = newList[count]
@@ -514,7 +516,7 @@ class prediction(APIView):
             keyphrases = extractor.get_n_best(n=10)
             if keyphrases:
                 label = keyphrases[0][0]
-            label=AnswerDict["Vendor"]
+            # label=AnswerDict["Vendor"]
             assert itenary_answer    
             answer_found=True
         if answer_found:

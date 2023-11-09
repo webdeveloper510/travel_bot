@@ -340,7 +340,7 @@ class prediction(APIView):
             answer_found = False 
             Selected_values_list = []
             best_match=[]
-        
+            SelectedVendorData = None
             if vendor_select:
                 SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
                 for Selected_keys , Selected_values in SelectedVendorData.items():
@@ -383,6 +383,12 @@ class prediction(APIView):
                         elif len(inputlist) == 1:  # Run the elif condition when inputlist length is 1
                             if common_items_count == 1:
                                 best_match.append(header)
+                for each_col_values in inputlist:
+                    for ke_ , val_ in SelectedVendorData.items():
+                        if ke_ == "Vendor":
+                            AnswerDict["Place"]=val_
+                        if each_col_values ==str(val_):
+                            AnswerDict[ke_]=val_
                 if best_match:
                     for tag in best_match:
                         tag_ = tag.replace(" ", "_")
@@ -390,11 +396,7 @@ class prediction(APIView):
                             if SelectedVendorData[tag_]!="nan":
                                 AnswerDict[tag]= SelectedVendorData[tag_]
 
-                for each_col_values in inputlist:
-                    for ke_ , val_ in SelectedVendorData.items():
-                        if each_col_values ==str(val_).lower():
-                            AnswerDict["Vendor"]=SelectedVendorData["Vendor"]
-                            AnswerDict[ke_]=val_
+
 
                 if len(list(AnswerDict.keys()))>1:
                     AnswerDict
@@ -433,7 +435,6 @@ class prediction(APIView):
 
                     # list of matched header name
                     unique_results_list = list(unique_results)
-                    print('uniques result else vali---->>>',unique_results_list)
                     # get header name from user input.
                     label_matches ,ab= self.find_best_label_matches(dictionary_list, inputlist)
                     random_rows = random.sample(label_matches, num_random_rows)
@@ -441,7 +442,7 @@ class prediction(APIView):
                     for i , j in random_rows[0].items():
                         if j in ab:
                             AnswerDict[i]=j
-                            AnswerDict['Vendor'] = random_rows[0]["Vendor"]
+                            AnswerDict['Place'] = random_rows[0]["Vendor"]
                     
                     best_header_match = self.find_best_header_match(unique_results_list, inputlist)
                     if best_header_match:
@@ -484,7 +485,6 @@ class prediction(APIView):
 
                 # list of matched header name
                 unique_results_list = list(unique_results)
-                print('uniques result else vali---->>>',unique_results_list)
                 # get header name from user input.
                 label_matches ,ab= self.find_best_label_matches(dictionary_list, inputlist)
                 random_rows = random.sample(label_matches, num_random_rows)
@@ -492,34 +492,37 @@ class prediction(APIView):
                 for i , j in random_rows[0].items():
                     if j in ab:
                         AnswerDict[i]=j
-                        AnswerDict['Vendor'] = random_rows[0]["Vendor"]
+                        AnswerDict['Place'] = random_rows[0]["Vendor"]
                 
                 best_header_match = self.find_best_header_match(unique_results_list, inputlist)
                 if best_header_match:
                     for tag in best_header_match:
                         if tag in list(random_rows[0].keys()):
                             AnswerDict[tag]= random_rows[0][tag]
-
-            print("answer dfdgsdyisdgsdshdg---------.>>>>",AnswerDict)
-        # finalresultSring = ''
-        if AnswerDict:           
+        print(AnswerDict, "Here is the Actual Result")
+        if AnswerDict:   
             for Vnd , Oer in AnswerDict.items():
-                if Vnd == "Vendor":
+                if Vnd == "Place":
                     VendorName = Oer
-                # finalresultSring = f"{Vnd}.{Oer}"
             my_string = str(AnswerDict)
-            r = requests.post("https://api.deepai.org/api/text-generator",{"text":my_string},headers={'api-key':DEEP_API_KEY})
-            genratedText = r.json()
-            itenary_answer=genratedText['output']
-            extractor.load_document(input=itenary_answer, language='en')
-            extractor.candidate_selection()
-            extractor.candidate_weighting()
-            keyphrases = extractor.get_n_best(n=10)
-            if keyphrases:
-                label = keyphrases[0][0]
-            # label=AnswerDict["Vendor"]
-            assert itenary_answer    
-            answer_found=True
+            # print(finalresultSring, "---------------->")
+            try:
+                r = requests.post("https://api.deepai.org/api/text-generator",{"text":my_string},headers={'api-key':DEEP_API_KEY})
+                genratedText = r.json()
+                itenary_answer=genratedText['output']
+                extractor.load_document(input=itenary_answer, language='en')
+                extractor.candidate_selection()
+                extractor.candidate_weighting()
+                keyphrases = extractor.get_n_best(n=10)
+                if keyphrases:
+                    label = keyphrases[0][0]
+
+                # label=AnswerDict["Vendor"]
+                assert itenary_answer    
+                answer_found=True
+            except Exception as e:
+                print(e)
+            
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date

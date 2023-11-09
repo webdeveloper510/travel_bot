@@ -501,13 +501,14 @@ class prediction(APIView):
                             AnswerDict[tag]= random_rows[0][tag]
 
             print("answer dfdgsdyisdgsdshdg---------.>>>>",AnswerDict)
-
+        # finalresultSring = ''
         if AnswerDict:           
             for Vnd , Oer in AnswerDict.items():
                 if Vnd == "Vendor":
                     VendorName = Oer
-                    
-            r = requests.post("https://api.deepai.org/api/text-generator",{"text":str(AnswerDict)},headers={'api-key':DEEP_API_KEY})
+                # finalresultSring = f"{Vnd}.{Oer}"
+            my_string = str(AnswerDict)
+            r = requests.post("https://api.deepai.org/api/text-generator",{"text":my_string},headers={'api-key':DEEP_API_KEY})
             genratedText = r.json()
             itenary_answer=genratedText['output']
             extractor.load_document(input=itenary_answer, language='en')

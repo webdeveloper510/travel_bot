@@ -409,7 +409,6 @@ class prediction(APIView):
                                 AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
                                 AnswerDict[tag] = SelectedVendorData[tag_]
             elif queryValue_dict["Vendor"]!=vendor_select:
-                print("Here")
                 key_matched=self.find_best_header_match(unique_results,inputlist)
                 for i in key_matched:
                     for selectedDictKey , selectedDictValues in queryValue_dict.items():
@@ -418,15 +417,19 @@ class prediction(APIView):
                             AnswerDict[selectedDictKey]=selectedDictValues
                 if AnswerDict=={}:
                     AnswerDict=queryValue_dict
-          
         if AnswerDict:
+            maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
             AnswerDict['Place'] = AnswerDict.pop('Vendor')
             for Vnd , Oer in AnswerDict.items():
+                for check in maintainAnswer:
+                    if check == Vnd:
+                        AnswerDict[Vnd] = "€"+AnswerDict[Vnd]
+                if Vnd == 'Time of Visit hours':
+                        AnswerDict[Vnd] = AnswerDict[Vnd]+" "+"minutes"
                 if Vnd == "Place":
                     VendorName = Oer
             my_string = str(AnswerDict)
             finalresultAnswerToAPI = my_string[1:-1]
-            print(finalresultAnswerToAPI, "---------------->")
             try:
                     
                 r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
@@ -438,12 +441,12 @@ class prediction(APIView):
                 keyphrases = extractor.get_n_best(n=10)
                 if keyphrases:
                     label = keyphrases[0][0]
-
-                # label=AnswerDict["Vendor"]
                 assert itenary_answer    
                 answer_found=True
             except Exception as e:
                 print(e)
+                return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
+        
             
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
@@ -459,6 +462,8 @@ class prediction(APIView):
 
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
 
+
+# 'net Cost Per Person Adult', 'net Cost Per Person Child Senior' ,'Time of Visit hours', 'net Cost by Experience' , 'net Cost by Hour' ,  'net Cost Per Person Child/Senior' 'Maximum Pax per cost'
 
 
 

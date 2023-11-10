@@ -257,7 +257,7 @@ class prediction(APIView):
             for each_rec in unique_results_list:
                 for split_item in inputlist:
                     similarity = fuzz.ratio(each_rec.lower(), split_item.lower())
-                    if similarity >= 90:
+                    if similarity >= 90:    
                         best_match.append(each_rec)
 
         if unique_results_list:
@@ -284,24 +284,26 @@ class prediction(APIView):
 
         return list(set(best_match)) # Return the best_match list
     
-    
-    def find_best_label_matches(self,dictionary_list, input_list):
+    def find_best_label_matches(self, dictionary_list, input_list):
         matches = []
-        valuesList = []
-        for data in dictionary_list:
-            values = self.find_best_header_match(list(data.values()), input_list)
-            match_count = len(values)
-            matches.append(match_count)
-            valuesList.append(values)
-        max_matches = max(matches)
-        abc = [valuesList[i] for i, count in enumerate(matches) if count == max_matches][0]
-        matching_rows = []
+        numberToCheck = 0 
+        indexToCheck = None
 
-        for data in dictionary_list:
-            if all(value in data.values() for value in abc):
-                matching_rows.append(data)
-        return matching_rows , abc
-       
+        for i, data in enumerate(dictionary_list):
+            for key, value in data.items():
+                valueList = value.lower().split(" ")
+                current_matches = [j for j in input_list if j.lower() in valueList]
+
+                if len(current_matches) > numberToCheck:
+                    numberToCheck = len(current_matches)
+                    indexToCheck = i
+                    matches = current_matches
+
+        if indexToCheck is not None:
+            return dictionary_list[indexToCheck]
+        else:
+            return 'None'
+
     def post(self, request,format=None):
         answer_found = False
         label = ''            
@@ -312,7 +314,6 @@ class prediction(APIView):
         AnswerDict={}
 
         # =================================================================
-
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
         vendor_select=request.data.get('vendor_name')
@@ -337,177 +338,98 @@ class prediction(APIView):
             itenary_answer=value_found
             answer_found = True 
         else:
+
             answer_found = False 
             Selected_values_list = []
             best_match=[]
             SelectedVendorData = None
-            if vendor_select:
-                SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
-                for Selected_keys , Selected_values in SelectedVendorData.items():
-                    keys_replace = Selected_keys.replace("_", " ")
-                    actual_list.append(keys_replace)
-                    Selected_values_list.append(Selected_values)
-
-                for items in inputlist:
-                    for key in actual_list:
-                        assert items
-                        if items in key.lower():
-                            unique_results.add(key)
-
-                # list of matched header name
-                unique_results_list = list(unique_results)
+            itenary_answer = None 
+            service = TravelBotData.objects.all().order_by('id')
+            for i in service:
+                actual_dict = {}
+                newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
                 
-                if unique_results_list:
-                    for each_rec in unique_results_list:
-                        for split_item in inputlist:
-                            similarity = fuzz.ratio(each_rec.lower(), split_item.lower())
-                            if similarity >= 90:
-                                best_match.append(each_rec)
-            
+                # ALL columns name get from database
+                all_fields = TravelBotData._meta.get_fields()
+                field_names = [field.name for field in all_fields]
+                del field_names[0]
 
-                if unique_results_list:
-                    max_common_items = 0  # Initialize maximum common items
-                    header_with_max_common = None  # Initialize the header with the most common items
+                # Create a dictionary with column name and its values without none value.
+                count = 0
+                for keys in field_names:
 
-                    for header in unique_results_list:
-                        header_words = header.lower().split()
-                        common_words = set(header_words).intersection(inputlist)
-                        common_items_count = len(common_words)
-                        if len(inputlist) >= 2:  # Check the length of inputlist
-                            if common_items_count >= 2:
-                                if common_items_count > max_common_items:
-                                    max_common_items = common_items_count
-                                    header_with_max_common = header
-                                    best_match.append(header_with_max_common)
+                    keys_replace = keys.replace("_", " ")
+                    if newList[count] != "nan" and newList[count] != " ":
+                        actual_dict[keys_replace] = newList[count]
+                        actual_list.append(keys_replace)
+                    count += 1
 
-                        elif len(inputlist) == 1:  # Run the elif condition when inputlist length is 1
-                            if common_items_count == 1:
-                                best_match.append(header)
-                for each_col_values in inputlist:
-                    for ke_ , val_ in SelectedVendorData.items():
-                        if ke_ == "Vendor":
-                            AnswerDict["Place"]=val_
-                        if each_col_values ==str(val_):
-                            AnswerDict[ke_]=val_
-                if best_match:
-                    for tag in best_match:
-                        tag_ = tag.replace(" ", "_")
-                        if tag_ in list(SelectedVendorData.keys()):
-                            if SelectedVendorData[tag_]!="nan":
-                                AnswerDict[tag]= SelectedVendorData[tag_]
+                dictionary_list.append(actual_dict)
+           
+            # get only unique keysAnswerDict
+            actual_keys = list(set(actual_list))
 
+            for items in inputlist:
+                for key in actual_keys:
+                    assert items
+                    if items in key.lower():
+                        unique_results.add(key)
 
+            queryValue_dict=self.find_best_label_matches(dictionary_list,inputlist)
+            print(queryValue_dict)
+            if queryValue_dict == "None":
+                print("here")
+                filter_keys=[]
+                filter_selectedvendor_keys=[]
+                matched_selectedvendor_keys=[]
+                unique_results_list=[]
+                if vendor_select:
+                    SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
+                    filter_keys = [key.replace("_", " ") for key in SelectedVendorData.keys()][1:]
+                    filter_values = list(SelectedVendorData.values())[1:]
 
-                if len(list(AnswerDict.keys()))>1:
-                    AnswerDict
-                    #Checking for that Vendor :
-                else:
-                    itenary_answer = None 
-                    service = TravelBotData.objects.all().order_by('id')
-                    for i in service:
-                        actual_dict = {}
-                        newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
-                        
-                        # ALL columns name get from database
-                        all_fields = TravelBotData._meta.get_fields()
-                        field_names = [field.name for field in all_fields]
-                        del field_names[0]
+                    # keys filtered like from user input
+                    filter_selectedvendor_keys = [key for items in inputlist for key in filter_keys if items in key.lower()]
 
-                        # Create a dictionary with column name and its values without none value.
-                        count = 0
-                        for keys in field_names:
-                            keys_replace = keys.replace("_", " ")
-                            if newList[count] != "nan" and newList[count] != " ":
-                                actual_dict[keys_replace] = newList[count]
-                                actual_list.append(keys_replace)
-                            count += 1
+                    # match the header keys from user input.
+                    matched_selectedvendor_keys = [rec for rec in filter_selectedvendor_keys for split_item in inputlist
+                                                if fuzz.ratio(rec.lower(), split_item.lower()) >= 90]
 
-                        dictionary_list.append(actual_dict)
+                    # match header keys if user asks one value to more.
+                    if len(inputlist) >= 2:
+                        matched_selectedvendor_keys += unique_results_list
 
-                    # get only unique keys
-                    actual_keys = list(set(actual_list))
+                    elif len(inputlist) == 1:
+                        matched_selectedvendor_keys += unique_results_list
 
-                    for items in inputlist:
-                        for key in actual_keys:
-                            assert items
-                            if items in key.lower():
-                                unique_results.add(key)
-
-                    # list of matched header name
-                    unique_results_list = list(unique_results)
-                    # get header name from user input.
-                    label_matches ,ab= self.find_best_label_matches(dictionary_list, inputlist)
-                    random_rows = random.sample(label_matches, num_random_rows)
-
-                    for i , j in random_rows[0].items():
-                        if j in ab:
-                            AnswerDict[i]=j
-                            AnswerDict['Place'] = random_rows[0]["Vendor"]
-                    
-                    best_header_match = self.find_best_header_match(unique_results_list, inputlist)
-                    if best_header_match:
-                        for tag in best_header_match:
-                            if tag in list(random_rows[0].keys()):
-                                AnswerDict[tag]= random_rows[0][tag]
-
-            else:
-                itenary_answer = None 
-                service = TravelBotData.objects.all().order_by('id')
-                for i in service:
-                    actual_dict = {}
-                    newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
-                    
-                    # ALL columns name get from database
-                    all_fields = TravelBotData._meta.get_fields()
-                    field_names = [field.name for field in all_fields]
-                    del field_names[0]
-
-                    # Create a dictionary with column name and its values without none value.
-                    count = 0
-                    for keys in field_names:
-
-                        keys_replace = keys.replace("_", " ")
-                        if newList[count] != "nan" and newList[count] != " ":
-                            actual_dict[keys_replace] = newList[count]
-                            actual_list.append(keys_replace)
-                        count += 1
-
-                    dictionary_list.append(actual_dict)
-
-                # get only unique keys
-                actual_keys = list(set(actual_list))
-
-                for items in inputlist:
-                    for key in actual_keys:
-                        assert items
-                        if items in key.lower():
-                            unique_results.add(key)
-
-                # list of matched header name
-                unique_results_list = list(unique_results)
-                # get header name from user input.
-                label_matches ,ab= self.find_best_label_matches(dictionary_list, inputlist)
-                random_rows = random.sample(label_matches, num_random_rows)
-
-                for i , j in random_rows[0].items():
-                    if j in ab:
-                        AnswerDict[i]=j
-                        AnswerDict['Place'] = random_rows[0]["Vendor"]
-                
-                best_header_match = self.find_best_header_match(unique_results_list, inputlist)
-                if best_header_match:
-                    for tag in best_header_match:
-                        if tag in list(random_rows[0].keys()):
-                            AnswerDict[tag]= random_rows[0][tag]
-        print(AnswerDict, "Here is the Actual Result")
-        if AnswerDict:   
+                    if matched_selectedvendor_keys:
+                        for tag in matched_selectedvendor_keys:
+                            tag_ = tag.replace(" ", "_")
+                            if tag_ in SelectedVendorData and SelectedVendorData[tag_] != "nan":
+                                AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
+                                AnswerDict[tag] = SelectedVendorData[tag_]
+            elif queryValue_dict["Vendor"]!=vendor_select:
+                print("Here")
+                key_matched=self.find_best_header_match(unique_results,inputlist)
+                for i in key_matched:
+                    for selectedDictKey , selectedDictValues in queryValue_dict.items():
+                        AnswerDict["Vendor"]=queryValue_dict["Vendor"]
+                        if i == selectedDictKey:
+                            AnswerDict[selectedDictKey]=selectedDictValues
+                if AnswerDict=={}:
+                    AnswerDict=queryValue_dict
+          
+        if AnswerDict:
+            AnswerDict['Place'] = AnswerDict.pop('Vendor')
             for Vnd , Oer in AnswerDict.items():
                 if Vnd == "Place":
                     VendorName = Oer
             my_string = str(AnswerDict)
-            # print(finalresultSring, "---------------->")
+            finalresultAnswerToAPI = my_string[1:-1]
+            print(finalresultAnswerToAPI, "---------------->")
             try:
-                r = requests.post("https://api.deepai.org/api/text-generator",{"text":my_string},headers={'api-key':DEEP_API_KEY})
+                    
+                r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
                 genratedText = r.json()
                 itenary_answer=genratedText['output']
                 extractor.load_document(input=itenary_answer, language='en')
@@ -528,7 +450,7 @@ class prediction(APIView):
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-            if "Vendor" in AnswerDict.keys():
+            if "Place" in AnswerDict.keys():
                 return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorName},status=status.HTTP_200_OK)
             return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
 

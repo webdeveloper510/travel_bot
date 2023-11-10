@@ -417,6 +417,8 @@ class prediction(APIView):
                             AnswerDict[selectedDictKey]=selectedDictValues
                 if AnswerDict=={}:
                     AnswerDict=queryValue_dict
+            elif queryValue_dict["Vendor"]==vendor_select:
+                    AnswerDict=queryValue_dict
         if AnswerDict:
             maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
             AnswerDict['Place'] = AnswerDict.pop('Vendor')

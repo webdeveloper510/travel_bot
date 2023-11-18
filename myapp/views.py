@@ -59,6 +59,9 @@ from langchain.chains import ConversationalRetrievalChain, RetrievalQA
 from langchain.indexes.vectorstore import VectorStoreIndexWrapper
 from langchain.vectorstores import Chroma 
 from langchain.embeddings import OpenAIEmbeddings
+from dotenv import load_dotenv
+import ast
+load_dotenv()
 
 
 url="http://127.0.0.1:8000/static/media/"
@@ -331,7 +334,11 @@ class prediction(APIView):
         # =================================================================
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
-        vendor_select=request.data.get('array')
+        vendor_get=request.data.get('vendor_name')
+        
+        vendor_select = json.loads(json.loads(vendor_get))
+        
+        print("________________",type(vendor_select))
 
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
@@ -489,7 +496,7 @@ class prediction(APIView):
             df = pd.DataFrame(queryValue_dict)
             df.to_csv(f'output{request.user.id}.csv', index=False)
             
-            os.environ["OPENAI_API_KEY"] = "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"
+            os.environ["OPENAI_API_KEY"] = os.getenv("chat_key")
             pathvar = f'output{request.user.id}.csv'
             print(pathvar)
             loader = CSVLoader(pathvar)

@@ -51,7 +51,14 @@ extractor = pke.unsupervised.TopicRank()
 import random
 num_random_rows = 1
 from keybert import KeyBERT
-
+import sys
+from langchain.chat_models import ChatOpenAI
+from langchain.document_loaders import DirectoryLoader, TextLoader, CSVLoader, DataFrameLoader 
+from langchain.indexes import VectorstoreIndexCreator
+from langchain.chains import ConversationalRetrievalChain, RetrievalQA
+from langchain.indexes.vectorstore import VectorStoreIndexWrapper
+from langchain.vectorstores import Chroma 
+from langchain.embeddings import OpenAIEmbeddings
 
 
 url="http://127.0.0.1:8000/static/media/"
@@ -285,24 +292,31 @@ class prediction(APIView):
         return list(set(best_match)) # Return the best_match list
     
     def find_best_label_matches(self, dictionary_list, input_list):
-        matches = []
-        numberToCheck = 0 
-        indexToCheck = None
-
-        for i, data in enumerate(dictionary_list):
-            for key, value in data.items():
-                valueList = value.lower().split(" ")
-                current_matches = [j for j in input_list if j.lower() in valueList]
-
-                if len(current_matches) > numberToCheck:
-                    numberToCheck = len(current_matches)
-                    indexToCheck = i
-                    matches = current_matches
-
-        if indexToCheck is not None:
-            return dictionary_list[indexToCheck]
-        else:
-            return 'None'
+            matches = []
+            numberToCheck = 0 
+            indexToCheck = None
+            indexesList = []
+            SelectedGetQueryDicts = []
+            for i, data in enumerate(dictionary_list):
+                for key, value in data.items():
+                    valueList = value.lower().split(" ")
+                    current_matches = [j for j in input_list if j.lower() in valueList]
+                    if len(current_matches) > numberToCheck:
+                        numberToCheck = len(current_matches)
+                        indexToCheck = i
+                        matches = current_matches
+                    if len(current_matches) > 2:
+                        numberToCheck = len(current_matches)
+                        indexToCheck = i
+                        matches = current_matches
+                    if indexToCheck not in indexesList and indexToCheck!=None:
+                        indexesList.append(indexToCheck)
+            if indexesList is not None:    
+                for ij in indexesList:
+                    SelectedGetQueryDicts.append(dictionary_list[ij])
+                return SelectedGetQueryDicts
+            else:
+                return 'None'
 
     def post(self, request,format=None):
         answer_found = False
@@ -312,11 +326,12 @@ class prediction(APIView):
         actual_list = []
         dictionary_list = []
         AnswerDict={}
+        global queryValue_dict
 
         # =================================================================
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
-        vendor_select=request.data.get('vendor_name')
+        vendor_select=request.data.get('array')
 
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
@@ -348,25 +363,19 @@ class prediction(APIView):
             for i in service:
                 actual_dict = {}
                 newList = [i.Vendor, i.net_Cost_by_Experience, i.net_Cost_by_Hour, i.net_Cost_Per_Person_Adult, i.net_Cost_Per_Person_Child_Senior, i.Is_The_Guide_Included_in_the_cost, i.Maximum_Pax_per_cost, i.Location, i.Description_of_the_Experience, i.Time_of_Visit_hours, i.Contact_First_Name, i.Contact_Last_Name, i.Contact_Number, i.Contact_Email, i.Tag_1, i.Tag_2, i.Tag_3, i.Tag_4, i.Tag_5, i.Tag_6]
-                
                 # ALL columns name get from database
                 all_fields = TravelBotData._meta.get_fields()
                 field_names = [field.name for field in all_fields]
                 del field_names[0]
-
                 # Create a dictionary with column name and its values without none value.
                 count = 0
                 for keys in field_names:
-
                     keys_replace = keys.replace("_", " ")
                     if newList[count] != "nan" and newList[count] != " ":
                         actual_dict[keys_replace] = newList[count]
                         actual_list.append(keys_replace)
                     count += 1
-
                 dictionary_list.append(actual_dict)
-           
-            # get only unique keysAnswerDict
             actual_keys = list(set(actual_list))
 
             for items in inputlist:
@@ -374,101 +383,267 @@ class prediction(APIView):
                     assert items
                     if items in key.lower():
                         unique_results.add(key)
-
             queryValue_dict=self.find_best_label_matches(dictionary_list,inputlist)
-            print(queryValue_dict)
-            if queryValue_dict == "None":
+            if queryValue_dict == []:
+                VendorSelectList = []
                 print("here")
-                filter_keys=[]
-                filter_selectedvendor_keys=[]
-                matched_selectedvendor_keys=[]
-                unique_results_list=[]
+                # filter_keys=[]
+                # filter_selectedvendor_keys=[]
+                # matched_selectedvendor_keys=[]
+                # unique_results_list=[]
                 if vendor_select:
-                    SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
-                    filter_keys = [key.replace("_", " ") for key in SelectedVendorData.keys()][1:]
-                    filter_values = list(SelectedVendorData.values())[1:]
+                   for uniqueVendor in vendor_select['vendor_name']:
+                    SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
+                    modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}
 
-                    # keys filtered like from user input
-                    filter_selectedvendor_keys = [key for items in inputlist for key in filter_keys if items in key.lower()]
-
-                    # match the header keys from user input.
-                    matched_selectedvendor_keys = [rec for rec in filter_selectedvendor_keys for split_item in inputlist
-                                                if fuzz.ratio(rec.lower(), split_item.lower()) >= 90]
-
-                    # match header keys if user asks one value to more.
-                    if len(inputlist) >= 2:
-                        matched_selectedvendor_keys += unique_results_list
-
-                    elif len(inputlist) == 1:
-                        matched_selectedvendor_keys += unique_results_list
-
-                    if matched_selectedvendor_keys:
-                        for tag in matched_selectedvendor_keys:
-                            tag_ = tag.replace(" ", "_")
-                            if tag_ in SelectedVendorData and SelectedVendorData[tag_] != "nan":
-                                AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
-                                AnswerDict[tag] = SelectedVendorData[tag_]
-            elif queryValue_dict["Vendor"]!=vendor_select:
-                key_matched=self.find_best_header_match(unique_results,inputlist)
-                for i in key_matched:
-                    for selectedDictKey , selectedDictValues in queryValue_dict.items():
-                        AnswerDict["Vendor"]=queryValue_dict["Vendor"]
-                        if i == selectedDictKey:
-                            AnswerDict[selectedDictKey]=selectedDictValues
-                if AnswerDict=={}:
-                    AnswerDict=queryValue_dict
-            elif queryValue_dict["Vendor"]==vendor_select:
-                    AnswerDict=queryValue_dict
-        if AnswerDict:
-            maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
-            AnswerDict['Place'] = AnswerDict.pop('Vendor')
-            for Vnd , Oer in AnswerDict.items():
-                for check in maintainAnswer:
-                    if check == Vnd:
-                        AnswerDict[Vnd] = "€"+AnswerDict[Vnd]
-                if Vnd == 'Time of Visit hours':
-                        AnswerDict[Vnd] = AnswerDict[Vnd]+" "+"minutes"
-                if Vnd == "Place":
-                    VendorName = Oer
-            my_string = str(AnswerDict)
-            finalresultAnswerToAPI = my_string[1:-1]
-            try:
                     
-                r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
-                genratedText = r.json()
-                itenary_answer=genratedText['output']
-                extractor.load_document(input=itenary_answer, language='en')
-                extractor.candidate_selection()
-                extractor.candidate_weighting()
-                keyphrases = extractor.get_n_best(n=10)
-                if keyphrases:
-                    label = keyphrases[0][0]
-                assert itenary_answer    
-                answer_found=True
-            except Exception as e:
-                print(e)
-                return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
+                    if modified_keys_data not in VendorSelectList:
+                        VendorSelectList.append(modified_keys_data)
+
+                queryValue_dict = VendorSelectList
+
+                    
+            #             # filter_keys = [key.replace("_", " ") for key in SelectedVendorData.keys()][1:]
+            #             # filter_values = list(SelectedVendorData.values())[1:]
+
+            #         # keys filtered like from user input
+            #         filter_selectedvendor_keys = [key for items in inputlist for key in filter_keys if items in key.lower()]
+
+            #         # match the header keys from user input.
+            #         matched_selectedvendor_keys = [rec for rec in filter_selectedvendor_keys for split_item in inputlist
+            #                                     if fuzz.ratio(rec.lower(), split_item.lower()) >= 90]
+
+            #         # match header keys if user asks one value to more.
+            #         if len(inputlist) >= 2:
+            #             matched_selectedvendor_keys += unique_results_list
+
+            #         elif len(inputlist) == 1:
+            #             matched_selectedvendor_keys += unique_results_list
+
+            #         if matched_selectedvendor_keys:
+            #             for tag in matched_selectedvendor_keys:
+            #                 tag_ = tag.replace(" ", "_")
+            #                 if tag_ in SelectedVendorData and SelectedVendorData[tag_] != "nan":
+            #                     AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
+            #                     AnswerDict[tag] = SelectedVendorData[tag_]
+            # elif queryValue_dict:
+            #     key_matched=self.find_best_header_match(unique_results,inputlist)
+            #     for everyDict in queryValue_dict:
+            #         if everyDict["Vendor"]!=vendor_select:
+            #             print("111111111111111111111111")
+            #             for i in key_matched:
+            #                 print("22222222222222222222")
+            #                 for selectedDictKey , selectedDictValues in everyDict.items():
+            #                     print("33333333333333333333333333333333")
+                                
+            #                     AnswerDict["Vendor"]=everyDict["Vendor"]
+            #                     if i == selectedDictKey:
+            #                         print("5555555555555555555555555555555")
+            #                         AnswerDict[selectedDictKey]=selectedDictValues
+            #             if AnswerDict=={}:
+            #                 print("666666666666666666666666")
+            #                 AnswerDict=everyDict
+            #         elif everyDict["Vendor"]==vendor_select:
+            #             print("77777777777777777777777")
+            #             AnswerDict=everyDict
+            #     print(AnswerDict)        
+        # if AnswerDict:
+        #     maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
+        #     AnswerDict['Place'] = AnswerDict.pop('Vendor')
+        #     for Vnd , Oer in AnswerDict.items():
+        #         for check in maintainAnswer:
+        #             if check == Vnd:
+        #                 AnswerDict[Vnd] = "€"+AnswerDict[Vnd]
+        #         if Vnd == 'Time of Visit hours':
+        #                 AnswerDict[Vnd] = AnswerDict[Vnd]+" "+"minutes"
+        #         if Vnd == "Place":
+        #             VendorName = Oer
+        #     my_string = str(AnswerDict)
+        #     finalresultAnswerToAPI = my_string[1:-1]
+            # try:
+                
+                    
+            #     r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
+            #     genratedText = r.json()
+            #     itenary_answer=genratedText['output']
+            # extractor.load_document(input=questionInput, language='en')
+            # extractor.candidate_selection()
+            # extractor.candidate_weighting()
+            # keyphrases = extractor.get_n_best(n=10)
+            # if keyphrases:
+            #     label = keyphrases[0][0]
+            # assert itenary_answer    
+            answer_found=True
+            # except Exception as e:
+            #     print(e)
+            #     return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
         
             
         if answer_found:
+            print(queryValue_dict)
+            VendorNameDict = {}
+            newList = []
+            for everyDict in queryValue_dict:
+                newList.append(everyDict['Vendor'])
+            VendorNameDict["vendor_name"] = newList
+            df = pd.DataFrame(queryValue_dict)
+            df.to_csv(f'output{request.user.id}.csv', index=False)
+            
+            os.environ["OPENAI_API_KEY"] = "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"
+            pathvar = f'output{request.user.id}.csv'
+            print(pathvar)
+            loader = CSVLoader(pathvar)
+            index = VectorstoreIndexCreator().from_loaders([loader])
+            itenary_answer = index.query(questionInput, llm=ChatOpenAI())           
+            
+            extractor.load_document(input=itenary_answer, language='en')
+            extractor.candidate_selection()
+            extractor.candidate_weighting()
+            keyphrases = extractor.get_n_best(n=10)
+            if keyphrases:
+                label = keyphrases[0][0]
+            
+            
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-            if "Place" in AnswerDict.keys():
-                return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorName},status=status.HTTP_200_OK)
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
+           
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorNameDict},status=status.HTTP_200_OK)
 
         else:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
 
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
 
+""" new chatbot """
+# global chat_history
+# chat_history = []
 
-# 'net Cost Per Person Adult', 'net Cost Per Person Child Senior' ,'Time of Visit hours', 'net Cost by Experience' , 'net Cost by Hour' ,  'net Cost Per Person Child/Senior' 'Maximum Pax per cost'
+# class prediction(APIView):
+#     authentication_classes=[JWTAuthentication]
+
+#     def delete(self, request):
+#         try:
+#             user = UserProfileSerializer(request.user)
+#             id = request.data.get('id')
+#             if not id:
+#                 return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Please enter id"})
+#             if not UserActivity.objects.filter(user_id=user.data['id'],id=id).exists():
+#                 return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Invalid id"})
+#             chat = UserActivity.objects.filter(user_id=user.data['id'],id=id)
+#             chat.delete()
+#             return Response({'status':status.HTTP_200_OK,'message':"Deleted Successfully"})
+#         except Exception as e:
+#             exc_type, exc_obj, exc_tb = sys.exc_info()
+#             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
+    
+
+#     def post(self, request,format=None):
+#         answer_found = False
+#         label = ''            
 
 
+#         # =================================================================
+#         questionInput = request.data.get('query')
+#         topic_id = request.data.get('topic_id')
+#         vendor_select=request.data.get('vendor_name')
 
+#         # question = questionInput + " " +vendor_select
+#         question = questionInput
+        
+        
+        
+#         # =================================================================
+
+#         if not Topics.objects.filter(user_id=request.user.id).exists():
+#             data = Topics.objects.create(user_id=request.user.id, name=questionInput)
+#             topic_id = data.id
+#         else:
+#             if not topic_id:
+#                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
+#             if not Topics.objects.filter(id=topic_id).exists():
+#                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
+            
+            
+ 
+#         os.environ["OPENAI_API_KEY"] = "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"
+        
+#         loader = CSVLoader('myapp/botdata.csv')
+#         index = VectorstoreIndexCreator().from_loaders([loader])
+#         global r
+#         r = index.query(question, llm=ChatOpenAI())   
+        
+#         print(r)
+        
+        
+        
+#         # os.environ["OPENAI_API_KEY"] = "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"
+#         # # Enable to save to disk & reuse the model (for repeated queries on the same data)
+#         # PERSIST = False
+#         # query = question
+        
+#         # if PERSIST and os.path.exists("persist"):
+#         #     print("Reusing index...\n")
+#         #     vectorstore = Chroma(persist_directory="persist", embedding_function=OpenAIEmbeddings())
+#         #     index = VectorStoreIndexWrapper(vectorstore=vectorstore)
+#         # else:
+#         #     #loader = TextLoader("data/data.txt") # Use this line if you only need data.txt
+#         #     loader = CSVLoader('myapp/botdata.csv')
+#         #     # if PERSIST:
+#         #     #     index = VectorstoreIndexCreator(vectorstore_kwargs={"persist_directory":"persist"}).from_loaders([loader])
+#         #     # else:
+#         #     index = VectorstoreIndexCreator().from_loaders([loader])
+
+#         # chain = ConversationalRetrievalChain.from_llm(
+#         # llm=ChatOpenAI(model="gpt-3.5-turbo"),
+#         # retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
+#         # )
+
+        
+#         # # while True:
+#         # #     if not query:
+#         # #         query = input("Prompt: ")
+#         # #     if query in ['quit', 'q', 'exit']:
+#         # #         sys.exit()
+#         # result = chain({"question": query, "chat_history": chat_history})
+#         # print(result['answer'])
+#         # global r
+#         # r = result['answer']
+#         # chat_history.append((query, result['answer']))
+#         # query = None
+        
+        
+        
+        
+        
+                
+#         extractor.load_document(input=questionInput, language='en')
+#         extractor.candidate_selection()
+#         extractor.candidate_weighting()
+#         keyphrases = extractor.get_n_best(n=10)
+#         if keyphrases:
+#             label = keyphrases[0][0]
+#             #     assert r    
+#             #     answer_found=True
+#             # except Exception as e:
+#             #     print(e)
+#             #     return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
+        
+#         answer_found=True    
+#         if answer_found:
+#             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=r, topic=label, topic_id_id=topic_id)
+#             date_time = conversation.date
+#             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
+#             formatted_time = datetime_obj.strftime("%H:%M:%S")
+#             return Response({"Answer":r,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
+
+#         else:
+#             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
+
+#             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
+        
+        
 
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]

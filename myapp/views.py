@@ -323,23 +323,23 @@ class prediction(APIView):
 
     def post(self, request,format=None):
         answer_found = False
+        itenary_answer = None
         label = ''            
         VendorName = ''
         unique_results = set()
         actual_list = []
         dictionary_list = []
-        AnswerDict={}
-        global queryValue_dict
+        AnswerList=None
+        queryValue_dict = None
+        VendorNameDict = {}
+        
 
         # =================================================================
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
         vendor_get=request.data.get('vendor_name')
-        
-
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
-        input = spell(questionInput)
         # =================================================================
 
         if not Topics.objects.filter(user_id=request.user.id).exists():
@@ -357,12 +357,10 @@ class prediction(APIView):
             itenary_answer=value_found
             answer_found = True 
         else:
-
             answer_found = False 
             Selected_values_list = []
             best_match=[]
             SelectedVendorData = None
-            itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')
             for i in service:
                 actual_dict = {}
@@ -387,107 +385,23 @@ class prediction(APIView):
                     assert items
                     if items in key.lower():
                         unique_results.add(key)
+            
             queryValue_dict=self.find_best_label_matches(dictionary_list,inputlist)
             if queryValue_dict == []:
                 VendorSelectList = []
                 print("here")
-                # filter_keys=[]
-                # filter_selectedvendor_keys=[]
-                # matched_selectedvendor_keys=[]
-                # unique_results_list=[]
                 if vendor_get:
                    vendor_select = json.loads(json.loads(vendor_get))
         
                    for uniqueVendor in vendor_select['vendor_name']:
                     SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
                     modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}
-
-                    
                     if modified_keys_data not in VendorSelectList:
                         VendorSelectList.append(modified_keys_data)
-
-                queryValue_dict = VendorSelectList
-
-                    
-            #             # filter_keys = [key.replace("_", " ") for key in SelectedVendorData.keys()][1:]
-            #             # filter_values = list(SelectedVendorData.values())[1:]
-
-            #         # keys filtered like from user input
-            #         filter_selectedvendor_keys = [key for items in inputlist for key in filter_keys if items in key.lower()]
-
-            #         # match the header keys from user input.
-            #         matched_selectedvendor_keys = [rec for rec in filter_selectedvendor_keys for split_item in inputlist
-            #                                     if fuzz.ratio(rec.lower(), split_item.lower()) >= 90]
-
-            #         # match header keys if user asks one value to more.
-            #         if len(inputlist) >= 2:
-            #             matched_selectedvendor_keys += unique_results_list
-
-            #         elif len(inputlist) == 1:
-            #             matched_selectedvendor_keys += unique_results_list
-
-            #         if matched_selectedvendor_keys:
-            #             for tag in matched_selectedvendor_keys:
-            #                 tag_ = tag.replace(" ", "_")
-            #                 if tag_ in SelectedVendorData and SelectedVendorData[tag_] != "nan":
-            #                     AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
-            #                     AnswerDict[tag] = SelectedVendorData[tag_]
-            # elif queryValue_dict:
-            #     key_matched=self.find_best_header_match(unique_results,inputlist)
-            #     for everyDict in queryValue_dict:
-            #         if everyDict["Vendor"]!=vendor_select:
-            #             print("111111111111111111111111")
-            #             for i in key_matched:
-            #                 print("22222222222222222222")
-            #                 for selectedDictKey , selectedDictValues in everyDict.items():
-            #                     print("33333333333333333333333333333333")
-                                
-            #                     AnswerDict["Vendor"]=everyDict["Vendor"]
-            #                     if i == selectedDictKey:
-            #                         print("5555555555555555555555555555555")
-            #                         AnswerDict[selectedDictKey]=selectedDictValues
-            #             if AnswerDict=={}:
-            #                 print("666666666666666666666666")
-            #                 AnswerDict=everyDict
-            #         elif everyDict["Vendor"]==vendor_select:
-            #             print("77777777777777777777777")
-            #             AnswerDict=everyDict
-            #     print(AnswerDict)        
-        # if AnswerDict:
-        #     maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
-        #     AnswerDict['Place'] = AnswerDict.pop('Vendor')
-        #     for Vnd , Oer in AnswerDict.items():
-        #         for check in maintainAnswer:
-        #             if check == Vnd:
-        #                 AnswerDict[Vnd] = "€"+AnswerDict[Vnd]
-        #         if Vnd == 'Time of Visit hours':
-        #                 AnswerDict[Vnd] = AnswerDict[Vnd]+" "+"minutes"
-        #         if Vnd == "Place":
-        #             VendorName = Oer
-        #     my_string = str(AnswerDict)
-        #     finalresultAnswerToAPI = my_string[1:-1]
-            # try:
-                
-                    
-            #     r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
-            #     genratedText = r.json()
-            #     itenary_answer=genratedText['output']
-            # extractor.load_document(input=questionInput, language='en')
-            # extractor.candidate_selection()
-            # extractor.candidate_weighting()
-            # keyphrases = extractor.get_n_best(n=10)
-            # if keyphrases:
-            #     label = keyphrases[0][0]
-            # assert itenary_answer    
-            answer_found=True
-            # except Exception as e:
-            #     print(e)
-            #     return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
-        
+                queryValue_dict = VendorSelectList           
+        if queryValue_dict:
             
-        if answer_found:
             print(queryValue_dict)
-            VendorNameDict = {}
             newList = []
             for everyDict in queryValue_dict:
                 newList.append(everyDict['Vendor'])
@@ -508,8 +422,8 @@ class prediction(APIView):
             keyphrases = extractor.get_n_best(n=10)
             if keyphrases:
                 label = keyphrases[0][0]
-            
-            
+            answer_found = True
+        if answer_found:         
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format

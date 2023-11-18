@@ -336,9 +336,6 @@ class prediction(APIView):
         topic_id = request.data.get('topic_id')
         vendor_get=request.data.get('vendor_name')
         
-        vendor_select = json.loads(json.loads(vendor_get))
-        
-        print("________________",type(vendor_select))
 
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
@@ -398,7 +395,9 @@ class prediction(APIView):
                 # filter_selectedvendor_keys=[]
                 # matched_selectedvendor_keys=[]
                 # unique_results_list=[]
-                if vendor_select:
+                if vendor_get:
+                   vendor_select = json.loads(json.loads(vendor_get))
+        
                    for uniqueVendor in vendor_select['vendor_name']:
                     SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
                     modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}

@@ -89,33 +89,33 @@ WSGI_APPLICATION = 'TravelBot.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-# DATABASES = {
-#     'default': {
-#         'ENGINE':   'django.db.backends.mysql',
-#         'NAME':     'TravelData',
-#         "USER":     "root",
-#         # "PASSWORD": "1234",
-#         "PASSWORD": "admin@123",
-#         "HOST": "localhost",
-#         "PORT":"3306",
-#         # 'OPTIONS': {
-#         #     'read_default_file': '/opt/lampp/etc/my.cnf',
-#         # }
-        
-#     }
-# }
-
-
 DATABASES = {
     'default': {
         'ENGINE':   'django.db.backends.mysql',
         'NAME':     'TravelData',
         "USER":     "root",
-        "PASSWORD": "",
+        "PASSWORD": "1234",
+        # "PASSWORD": "admin@123",
         "HOST": "localhost",
         "PORT":"3306",
+        # 'OPTIONS': {
+        #     'read_default_file': '/opt/lampp/etc/my.cnf',
+        # }
+        
     }
 }
+
+
+# DATABASES = {
+#     'default': {
+#         'ENGINE':   'django.db.backends.mysql',
+#         'NAME':     'TravelData',
+#         "USER":     "root",
+#         "PASSWORD": "",
+#         "HOST": "localhost",
+#         "PORT":"3306",
+#     }
+# }
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators

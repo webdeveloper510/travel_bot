@@ -64,8 +64,8 @@ import ast
 load_dotenv()
 
 
-url="http://127.0.0.1:8000/static/media/"
-# url="http://16.170.254.147:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.170.254.147:8000/static/media/"
 
 # Create your views here.
 
@@ -202,6 +202,7 @@ class UploadCsv(APIView):
 details_dict={
     "hi":"Hello",
     "hey" :"Hi",
+    "who are you":"I am AI bot.",   
     "is anyone there?" :"Hi there ",
     "is anyone there" :"Hi there ",
     "hello" :"Hi",
@@ -303,7 +304,8 @@ class prediction(APIView):
             for i, data in enumerate(dictionary_list):
                 for key, value in data.items():
                     valueList = value.lower().split(" ")
-                    current_matches = [j for j in input_list if j.lower() in valueList]
+                    newInput =  [l for l in input_list if l.lower()!="visit" and l.lower()!="experience"  and l.lower()!="guide"]
+                    current_matches = [j for j in newInput if j.lower() in valueList]
                     if len(current_matches) > numberToCheck:
                         numberToCheck = len(current_matches)
                         indexToCheck = i
@@ -314,6 +316,7 @@ class prediction(APIView):
                         matches = current_matches
                     if indexToCheck not in indexesList and indexToCheck!=None:
                         indexesList.append(indexToCheck)
+ 
             if indexesList is not None:    
                 for ij in indexesList:
                     SelectedGetQueryDicts.append(dictionary_list[ij])
@@ -325,21 +328,20 @@ class prediction(APIView):
         answer_found = False
         itenary_answer = None
         label = ''            
-        VendorName = ''
         unique_results = set()
         actual_list = []
         dictionary_list = []
-        AnswerList=None
         queryValue_dict = None
         VendorNameDict = {}
         
-
         # =================================================================
+
         questionInput = request.data.get('query')
         topic_id = request.data.get('topic_id')
         vendor_get=request.data.get('vendor_name')
         correct_input = self.clean_text(questionInput)
         inputlist = correct_input.split(" ")
+        print(vendor_get , "****************************************************************")
         # =================================================================
 
         if not Topics.objects.filter(user_id=request.user.id).exists():
@@ -350,16 +352,16 @@ class prediction(APIView):
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
             if not Topics.objects.filter(id=topic_id).exists():
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
+            
+        # =================================================================
  
-        input=spell(questionInput)           
+        input=spell(questionInput)
         value_found=details_dict.get(input.lower().strip())
         if value_found:
             itenary_answer=value_found
             answer_found = True 
         else:
             answer_found = False 
-            Selected_values_list = []
-            best_match=[]
             SelectedVendorData = None
             service = TravelBotData.objects.all().order_by('id')
             for i in service:
@@ -369,7 +371,9 @@ class prediction(APIView):
                 all_fields = TravelBotData._meta.get_fields()
                 field_names = [field.name for field in all_fields]
                 del field_names[0]
+
                 # Create a dictionary with column name and its values without none value.
+
                 count = 0
                 for keys in field_names:
                     keys_replace = keys.replace("_", " ")
@@ -387,20 +391,25 @@ class prediction(APIView):
                         unique_results.add(key)
             
             queryValue_dict=self.find_best_label_matches(dictionary_list,inputlist)
+            print(queryValue_dict)
+        # =================================================================
+
             if queryValue_dict == []:
                 VendorSelectList = []
-                print("here")
+                print("here , =================================================================")
                 if vendor_get:
-                   vendor_select = json.loads(json.loads(vendor_get))
-        
-                   for uniqueVendor in vendor_select['vendor_name']:
-                    SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
-                    modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}
-                    if modified_keys_data not in VendorSelectList:
-                        VendorSelectList.append(modified_keys_data)
-                queryValue_dict = VendorSelectList           
+                    vendor_select = json.loads(vendor_get)
+                  
+                    for uniqueVendor in vendor_select['vendor_name']:
+                        SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
+                        modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}
+                        if modified_keys_data not in VendorSelectList:
+                            VendorSelectList.append(modified_keys_data)
+                queryValue_dict = VendorSelectList       
+                VendorSelectList = []
+        # =================================================================
+
         if queryValue_dict:
-            
             print(queryValue_dict)
             newList = []
             for everyDict in queryValue_dict:
@@ -412,10 +421,10 @@ class prediction(APIView):
             os.environ["OPENAI_API_KEY"] = os.getenv("chat_key")
             pathvar = f'output{request.user.id}.csv'
             print(pathvar)
+            postPrompt = "Do not give me any information that is not mentioned in the PROVIDED CONTEXT."
             loader = CSVLoader(pathvar)
             index = VectorstoreIndexCreator().from_loaders([loader])
-            itenary_answer = index.query(questionInput, llm=ChatOpenAI())           
-            
+            itenary_answer = index.query(questionInput + " " + postPrompt, llm=ChatOpenAI())
             extractor.load_document(input=itenary_answer, language='en')
             extractor.candidate_selection()
             extractor.candidate_weighting()
@@ -423,147 +432,22 @@ class prediction(APIView):
             if keyphrases:
                 label = keyphrases[0][0]
             answer_found = True
+
+        # =================================================================
+
         if answer_found:         
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-           
+            if Topics.objects.filter(id=topic_id):
+                print(Topics.objects.filter(id=topic_id).values(), "================================")
             return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorNameDict},status=status.HTTP_200_OK)
-
         else:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
-
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
 
-""" new chatbot """
-# global chat_history
-# chat_history = []
 
-# class prediction(APIView):
-#     authentication_classes=[JWTAuthentication]
-
-#     def delete(self, request):
-#         try:
-#             user = UserProfileSerializer(request.user)
-#             id = request.data.get('id')
-#             if not id:
-#                 return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Please enter id"})
-#             if not UserActivity.objects.filter(user_id=user.data['id'],id=id).exists():
-#                 return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Invalid id"})
-#             chat = UserActivity.objects.filter(user_id=user.data['id'],id=id)
-#             chat.delete()
-#             return Response({'status':status.HTTP_200_OK,'message':"Deleted Successfully"})
-#         except Exception as e:
-#             exc_type, exc_obj, exc_tb = sys.exc_info()
-#             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
-    
-
-#     def post(self, request,format=None):
-#         answer_found = False
-#         label = ''            
-
-
-#         # =================================================================
-#         questionInput = request.data.get('query')
-#         topic_id = request.data.get('topic_id')
-#         vendor_select=request.data.get('vendor_name')
-
-#         # question = questionInput + " " +vendor_select
-#         question = questionInput
-        
-        
-        
-#         # =================================================================
-
-#         if not Topics.objects.filter(user_id=request.user.id).exists():
-#             data = Topics.objects.create(user_id=request.user.id, name=questionInput)
-#             topic_id = data.id
-#         else:
-#             if not topic_id:
-#                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
-#             if not Topics.objects.filter(id=topic_id).exists():
-#                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
-            
-            
- 
-#         os.environ["OPENAI_API_KEY"] = "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"
-        
-#         loader = CSVLoader('myapp/botdata.csv')
-#         index = VectorstoreIndexCreator().from_loaders([loader])
-#         global r
-#         r = index.query(question, llm=ChatOpenAI())   
-        
-#         print(r)
-        
-        
-        
-#         # os.environ["OPENAI_API_KEY"] = "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"
-#         # # Enable to save to disk & reuse the model (for repeated queries on the same data)
-#         # PERSIST = False
-#         # query = question
-        
-#         # if PERSIST and os.path.exists("persist"):
-#         #     print("Reusing index...\n")
-#         #     vectorstore = Chroma(persist_directory="persist", embedding_function=OpenAIEmbeddings())
-#         #     index = VectorStoreIndexWrapper(vectorstore=vectorstore)
-#         # else:
-#         #     #loader = TextLoader("data/data.txt") # Use this line if you only need data.txt
-#         #     loader = CSVLoader('myapp/botdata.csv')
-#         #     # if PERSIST:
-#         #     #     index = VectorstoreIndexCreator(vectorstore_kwargs={"persist_directory":"persist"}).from_loaders([loader])
-#         #     # else:
-#         #     index = VectorstoreIndexCreator().from_loaders([loader])
-
-#         # chain = ConversationalRetrievalChain.from_llm(
-#         # llm=ChatOpenAI(model="gpt-3.5-turbo"),
-#         # retriever=index.vectorstore.as_retriever(search_kwargs={"k": 1}),
-#         # )
-
-        
-#         # # while True:
-#         # #     if not query:
-#         # #         query = input("Prompt: ")
-#         # #     if query in ['quit', 'q', 'exit']:
-#         # #         sys.exit()
-#         # result = chain({"question": query, "chat_history": chat_history})
-#         # print(result['answer'])
-#         # global r
-#         # r = result['answer']
-#         # chat_history.append((query, result['answer']))
-#         # query = None
-        
-        
-        
-        
-        
-                
-#         extractor.load_document(input=questionInput, language='en')
-#         extractor.candidate_selection()
-#         extractor.candidate_weighting()
-#         keyphrases = extractor.get_n_best(n=10)
-#         if keyphrases:
-#             label = keyphrases[0][0]
-#             #     assert r    
-#             #     answer_found=True
-#             # except Exception as e:
-#             #     print(e)
-#             #     return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
-        
-#         answer_found=True    
-#         if answer_found:
-#             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=r, topic=label, topic_id_id=topic_id)
-#             date_time = conversation.date
-#             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
-#             formatted_time = datetime_obj.strftime("%H:%M:%S")
-#             return Response({"Answer":r,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
-
-#         else:
-#             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
-
-#             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
-        
-        
 
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
@@ -571,8 +455,6 @@ class ChatDetailsByID(APIView):
     def get(self, request , topic_id):   #to get data from useractivity table with topic id
         try:
             user = UserProfileSerializer(request.user)
-            # topic_id = request.data.get('topic_id')
-            # print(topic_id)
             if not topic_id:
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
             if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
@@ -615,7 +497,7 @@ class ChatDetailsByID(APIView):
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
             if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Chat does not exists related to this topic!'})
-            data = UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).values('id','user_id','date','questions','answer','topic','topic_id_id')
+            data = UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).values('id','user_id','date','questions','answer','topic','topic_id_id',)
             for i in data:
                 i.update(time=i['date'].time())
                 i['date']  = i['date'].date()    
@@ -756,7 +638,7 @@ class TopicsView(APIView):
     def get(self, request):   #to get topics list of user
         try:
             user = UserProfileSerializer(request.user)
-            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name' , 'created_at__date')
+            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name' , 'created_at__date', "vendor_name")
             return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': list(data)})
         except Exception as e:
             return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})

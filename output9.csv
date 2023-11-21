@@ -1,2 +1,8 @@
+<<<<<<< HEAD
 Vendor,net Cost by Experience,Is The Guide Included in the cost,Location,Time of Visit hours,Tag 1,Tag 2,Tag 3,Tag 4,Tag 5
 Bakery Visit,60,Yes,Rabat,0:30,Food,People of Malta,Artisans ,Rural,Rabat
+=======
+id,Vendor,net Cost by Experience,net Cost by Hour,net Cost Per Person Adult,net Cost Per Person Child Senior,Is The Guide Included in the cost,Maximum Pax per cost,Location,Description of the Experience,Time of Visit hours,Contact First Name,Contact Last Name,Contact Number,Contact Email,Tag 1,Tag 2,Tag 3,Tag 4,Tag 5,Tag 6
+1,Falconry Experience,170,nan,nan,nan,Yes,nan,Ghar Lapsi,nan,1:30,Lawrence ,Formosa,35699906804,lawrence@ssfalconry.com,Family,Outdoors,Western Malta,Rural,People of Malta,Artisan
+2,Verdala Palace Private Visit,250,nan,nan,nan,Yes,nan,Siggiewi,nan,1:30,Charles,Marsh,35621221221,carmel.a.marsh@gov.mt ,Knights,Exclusive,Private,Western Malta,Noble,nan
+>>>>>>> 474f856 (New Updated Changes)

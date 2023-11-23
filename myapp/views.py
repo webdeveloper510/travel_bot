@@ -61,6 +61,7 @@ from langchain.vectorstores import Chroma
 from langchain.embeddings import OpenAIEmbeddings
 from dotenv import load_dotenv
 import ast
+from langchain.schema.messages import HumanMessage, SystemMessage
 load_dotenv()
 
 
@@ -332,7 +333,7 @@ class prediction(APIView):
         actual_list = []
         dictionary_list = []
         queryValue_dict = None
-        VendorNameDict = {}
+        VendorNameList = []
         
         # =================================================================
 
@@ -398,9 +399,11 @@ class prediction(APIView):
                 VendorSelectList = []
                 print("here , =================================================================")
                 if vendor_get:
-                    vendor_select = json.loads(vendor_get)
-                  
-                    for uniqueVendor in vendor_select['vendor_name']:
+                    print(ast.literal_eval(vendor_get), "get")
+                    vendor_select = ast.literal_eval(vendor_get)
+                    print(type(vendor_select), "get-Type")
+
+                    for uniqueVendor in vendor_select:
                         SelectedVendorData = TravelBotData.objects.filter(Vendor=uniqueVendor).values()[0]
                         modified_keys_data = {key.replace("_", " "): value for key, value in SelectedVendorData.items()}
                         if modified_keys_data not in VendorSelectList:
@@ -414,17 +417,28 @@ class prediction(APIView):
             newList = []
             for everyDict in queryValue_dict:
                 newList.append(everyDict['Vendor'])
-            VendorNameDict["vendor_name"] = newList
+                VendorNameList = newList
             df = pd.DataFrame(queryValue_dict)
             df.to_csv(f'output{request.user.id}.csv', index=False)
             
             os.environ["OPENAI_API_KEY"] = os.getenv("chat_key")
             pathvar = f'output{request.user.id}.csv'
             print(pathvar)
-            postPrompt = "Do not give me any information that is not mentioned in the PROVIDED CONTEXT."
+            postPrompt = "Do not give me any information that is not mentioned in the PROVIDED CONTEXT and HISTORY CHAT."
             loader = CSVLoader(pathvar)
             index = VectorstoreIndexCreator().from_loaders([loader])
             itenary_answer = index.query(questionInput + " " + postPrompt, llm=ChatOpenAI())
+            # chat = ChatOpenAI(openai_api_key=os.getenv("chat_key"))
+
+
+            # messages = [
+            #     SystemMessage(content="You're a helpful assistant for itinerary purpose. You will only provide information related to context that I will give. Do not fetch information from web. If any algoraithm expression is asked check that. You will always add Euro with cost and understand the time. Please NOTE all the things."),
+            #     HumanMessage(content=questionInput),
+            # ]
+            # chat.invoke(messages)
+            # for chunk in chat.stream(messages):
+            #     print(chunk.content, end="", flush=True)
+            # chat.batch([messages])
             extractor.load_document(input=itenary_answer, language='en')
             extractor.candidate_selection()
             extractor.candidate_weighting()
@@ -441,8 +455,9 @@ class prediction(APIView):
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
             if Topics.objects.filter(id=topic_id):
+                update_Vendor = Topics.objects.filter(id=topic_id).update(vendor_name=VendorNameList)
                 print(Topics.objects.filter(id=topic_id).values(), "================================")
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorNameDict},status=status.HTTP_200_OK)
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorNameList},status=status.HTTP_200_OK)
         else:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)

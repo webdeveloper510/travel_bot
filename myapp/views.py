@@ -63,7 +63,6 @@ from TravelBot.settings import OPENAI_KEY
 
 # url="http://127.0.0.1:8000/static/media/"
 url="http://16.170.254.147:8000/static/media/"
-
 # Create your views here.
 
 def get_tokens_for_user(user):
@@ -354,7 +353,7 @@ class Prediction(APIView):
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
         vendor_get=request.data.get("vendor_name")
-        vendor_select=ast.literal_eval(vendor_get)
+
         clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
         split_user_query=clean_usr_query.split(" ")                 # split user query by space
         if not Topics.objects.filter(user_id=request.user.id).exists():
@@ -424,10 +423,7 @@ class Prediction(APIView):
                  AnswerImputList.extend(tagsValues)
                  
             VendorNameResultsList=[]
-            for vendor in vendor_select:
-                SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
-                del SelectedVendorData['id']
-                VendorNameResultsList.append(SelectedVendorData)
+
                 
                 
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
@@ -436,6 +432,12 @@ class Prediction(APIView):
                 VandorNameList = dataframe['Vendor'].values            
                 itenary_answer=self.get_completion(dataframe,usr_query)
             else:
+                if vendor_get:
+                    vendor_select=ast.literal_eval(vendor_get)
+                    for vendor in vendor_select:
+                        SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
+                        del SelectedVendorData['id']
+                        VendorNameResultsList.append(SelectedVendorData)
                 dataframe2 = pd.DataFrame(VendorNameResultsList)
                 VandorNameList = dataframe2['Vendor'].values            
                 itenary_answer=self.get_completion(dataframe2,usr_query)   

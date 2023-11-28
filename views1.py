@@ -25,25 +25,23 @@ from datetime import datetime
 import pickle
 import requests
 import json
+import os
 import re
 import pandas as pd
 import numpy as np
-import openai
 import nltk
 from polyfuzz import PolyFuzz
 from nltk.corpus import stopwords
-from TravelBot.settings import GOOGLE_MAPS_KEY
+from TravelBot.settings import DEEP_API_KEY
 from autocorrect import Speller
 spell=Speller(lang='en')
 import fuzzywuzzy
 from fuzzywuzzy import fuzz
-from langchain.chat_models import ChatOpenAI
 from fuzzywuzzy import process
 # import nltk
 import re
 # import string
 import pke
-import os
 from django.shortcuts import get_object_or_404
 import sys
 from textblob import TextBlob
@@ -53,16 +51,11 @@ extractor = pke.unsupervised.TopicRank()
 import random
 num_random_rows = 1
 from keybert import KeyBERT
-import googlemaps
-from dotenv import load_dotenv
-load_dotenv()
-from langchain.indexes import VectorstoreIndexCreator
-from langchain.document_loaders import CSVLoader
-import ast
-from TravelBot.settings import OPENAI_KEY
 
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.170.254.147:8000/static/media/"
+
+
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 
 # Create your views here.
 
@@ -218,10 +211,27 @@ details_dict={
     "support me please":"Yes Sure, How can I support you"
 }
 
-class Prediction(APIView):
+
+# Api for predict Answer
+class prediction(APIView):
     authentication_classes=[JWTAuthentication]
+
+    def delete(self, request):
+        try:
+            user = UserProfileSerializer(request.user)
+            id = request.data.get('id')
+            if not id:
+                return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Please enter id"})
+            if not UserActivity.objects.filter(user_id=user.data['id'],id=id).exists():
+                return Response({'status':status.HTTP_400_BAD_REQUEST, "message":"Invalid id"})
+            chat = UserActivity.objects.filter(user_id=user.data['id'],id=id)
+            chat.delete()
+            return Response({'status':status.HTTP_200_OK,'message':"Deleted Successfully"})
+        except Exception as e:
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
     
-    # Function for user query cleaning and preprocessing 
+    
     def clean_text(self,text):
         REPLACE_BY_SPACE_RE = re.compile('[/(){}\[\]\|@,;]')     
         BAD_SYMBOLS_RE = re.compile('[^0-9a-z #+_]')
@@ -231,51 +241,16 @@ class Prediction(APIView):
         text=text.lower()
         text=REPLACE_BY_SPACE_RE.sub(' ',text)
         text=BAD_SYMBOLS_RE.sub(' ',text)
+        # text=text.replace('x','')
         text=' '.join(word for word in text.split() if word not in STOPWORDS)
         return text
-
-    # Function for match csv values (SQL DATABASE)
-    def find_vendor_values(self, dictionary_list, input_list):
-        matches_row = []  # Initialize an empty list to store matches
-        matched_vendor=[]
-        input_list = [word for word in input_list if word.lower() != "visit"]
-        for i, data in enumerate(dictionary_list):
-            if "Vendor" in data:
-                value_list = data["Vendor"]
-                
-                current_matches = [j for j in input_list if j.lower() in value_list.lower().split()]
-                if len(current_matches) >= 2:
-                    matches_row.append(data)
-                    val=" ".join(current_matches)
-                    matched_vendor.append(val.title())
-                    
-        return matches_row
     
-    # Function for getting value from tag and location column
-    def find_tags_values(self, dictionary_list, input_list):
-        matches_row_first_condition = []  # Initialize an empty list to store matches
-        matches_row_second_condition=[]
-        for i, data in enumerate(dictionary_list):
-            # Extract relevant fields for matching
-            fields_to_match = [data.get('Location', ''), data.get('Tag 1', ''), data.get('Tag 2', ''), data.get('Tag 3', ''),
-                            data.get("Tag 4", ""), data.get('Tag 5', ''), data.get('Tag 6', '')]
-            fields_to_match = [field.lower() for field in fields_to_match if field]
+    def automaticgetlabel(self, text):
+        kw_model = KeyBERT()
+        keywords = kw_model.extract_keywords(text)
+        keyword= kw_model.extract_keywords(text, keyphrase_ngram_range=(1, 2), stop_words='english',top_n=1)
+        return keyword
 
-            # Check if any of the query terms match the fields
-            current_matches = [word.lower() for word in input_list if word.lower() in fields_to_match]
-            if current_matches:
-                if len(set(map(len,current_matches)))==1:
-                    matches_row_first_condition.append(data)
-                elif any(len(matches) >=2 for matches in current_matches):
-                    matches_row_second_condition.append(data)
-        if matches_row_first_condition:
-            return matches_row_first_condition
-        elif matches_row_second_condition:
-            return matches_row_second_condition
-        else:
-            return "None"
-
-    # Function for get header name values        
     def find_best_header_match(self,unique_results_list, inputlist):
         best_match = []
         if unique_results_list:
@@ -285,97 +260,114 @@ class Prediction(APIView):
                     if similarity >= 90:    
                         best_match.append(each_rec)
 
-        max_common_items = 0  # Initialize maximum common items
-        header_with_max_common = None  # Initialize the header with the most common items
+        if unique_results_list:
+            max_common_items = 0  # Initialize maximum common items
+            header_with_max_common = None  # Initialize the header with the most common items
 
-        for header in unique_results_list:
-            header_words = header.lower().split()
-            common_words = set(header_words).intersection(inputlist)
-            common_items_count = len(common_words)
-            if len(inputlist) >= 3:  # Check the length of inputlist
-                if common_items_count >= 2:
-                    if common_items_count > max_common_items:
-                        max_common_items = common_items_count
-                        header_with_max_common = header
-                        best_match.append(header_with_max_common)
+            for header in unique_results_list:
+                header_words = header.lower().split()
+                common_words = set(header_words).intersection(inputlist)
+                common_items_count = len(common_words)
+                if len(inputlist) >= 2:  # Check the length of inputlist
+                    if common_items_count >= 2:
+                        if common_items_count > max_common_items:
+                            max_common_items = common_items_count
+                            header_with_max_common = header
+                            best_match.append(header_with_max_common)
 
-            elif len(inputlist) == 2:  # Run the elif condition when inputlist length is 1
-                if common_items_count == 1:
-                    best_match.append(header)
+                elif len(inputlist) == 1:  # Run the elif condition when inputlist length is 1
+                    if common_items_count == 1:
+                        best_match.append(header)
 
-        if header_with_max_common is not None and len(inputlist) >= 2:
-            best_match.append(header_with_max_common)
+            if header_with_max_common is not None and len(inputlist) >= 2:
+                best_match.append(header_with_max_common)
 
         return list(set(best_match)) # Return the best_match list
+    # def find_best_label_matches(self, dictionary_list, input_list):
+    #     matched_value=[]
+    #     numberToCheck = 0 
+    #     indexToCheck = None
+    #     indexesList = []
+    #     SelectedGetQueryDicts = []
+    #     for i, data in enumerate(dictionary_list):
+    #         for key, value in data.items():
+    #             valueList = value.lower().split(" ")
+    #             newInput =  [l for l in input_list if l.lower()!="visit" and l.lower()!="experience"  and l.lower()!="guide"]
+    #             current_matches = [j for j in newInput if j.lower() in valueList]
+    #             if current_matches:
+    #                 matched_value.append(current_matches)
+    #             if len(current_matches) > numberToCheck:
+    #                 numberToCheck = len(current_matches)
+    #                 indexToCheck = i
+    #             if len(current_matches) > 2:
+    #                 numberToCheck = len(current_matches)
+    #                 indexToCheck = i
+    #             if indexToCheck not in indexesList and indexToCheck!=None:
+    #                 indexesList.append(indexToCheck)
+    #     if indexesList is not None:    
+    #         for ij in indexesList:
+    #             SelectedGetQueryDicts.append(dictionary_list[ij])
+    #         return SelectedGetQueryDicts
+    #     else:
+    #         return 'None'
+    def find_best_label_matches(self, dictionary_list, input_list):
+        matches = []
+        numberToCheck = 0 
+        indexToCheck = None
 
+        for i, data in enumerate(dictionary_list):
+            for key, value in data.items():
+                valueList = value.lower().split(" ")
+                current_matches = [j for j in input_list if j.lower() in valueList]
 
-    # function for check google ask by google maps
-    def findMapIntent(self,inputlist):
-        PropertiesMatchMaps = []
-        GMapsProperties = ["Direction","Directions","Navigate","Route","How to get to","Driving directions","Walking directions","Public transportation","Nearby places","Places around","Points of interest","What's near","Traffic","Traffic conditions","Traffic update","Estimated time","Traffic jam","Distance","How far is","Duration","Time to","Map of","Show me a map","View map","Geocoding:","Latitude and longitude of","Address of","coordinates","Details of","Information about","Tell me about","Description of","Alternative routes","Other ways to","Different route","Named places (e.g., cities, landmarks)","Specific addresses","Specific","Google Maps","What can you do with Google Maps?","How does Google Maps work?"]
-        for each_rec in GMapsProperties:
-            for split_item in inputlist:
-                similarity = fuzz.ratio(each_rec.lower(), split_item.lower())
-                if similarity >= 75:    
-                    PropertiesMatchMaps.append(each_rec)
-        return PropertiesMatchMaps
-                
-    # function for get the distance between two location with three mode
-    def getDistanceAndtime(self,origin_direction ,destination,mode):
-        gmaps = googlemaps.Client(key=GOOGLE_MAPS_KEY)
-        directions_result = gmaps.directions(origin_direction, destination, mode)
-        kmdistance=directions_result[0]['legs'][0]['distance']['text']
-        hrsmindistance=directions_result[0]['legs'][0]['duration']['text']
-        return f"Distance between {origin_direction} to {destination} is {kmdistance} and total time visit is {hrsmindistance}"
-   
-    def get_completion(self,dataframe,userInput):
-        openai.api_key =OPENAI_KEY
-        postPrompt = "Given the provided context, generate a response that incorporates relevant information. You are allowed to perform calculations if necessary to enhance the completeness and accuracy of your answer."
-        prompt = f"{userInput} {postPrompt}\n\nData:\n{dataframe}"
-        messages = [{"role": "user", "content": prompt}]
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        temperature=0,
-        )
-        result= response.choices[0].message["content"]
-        
-        return result
-    
-    def post(self , request, format=None):
-        answer_found=False
-        unique_results = set()         # list of unique header name
-        actual_list = []              # use for dictionary list
-        dictionary_list = []           ### Store per rows with its header and value in list [{}]
-        AnswerImputList=[]
-        VandorNameList = []
-        label = ''
-        
-        usr_query=request.data.get("query")                         # input from postman
-        topic_id=request.data.get("topic_id")
-        vendor_get=request.data.get("vendor_name")
-        vendor_select=ast.literal_eval(vendor_get)
-        clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
-        split_user_query=clean_usr_query.split(" ")                 # split user query by space
+                if len(current_matches) > numberToCheck:
+                    numberToCheck = len(current_matches)
+                    indexToCheck = i
+                    matches = current_matches
+
+        if indexToCheck is not None:
+            return dictionary_list[indexToCheck]
+        else:
+            return 'None'
+
+    def post(self, request,format=None):
+        answer_found = False
+        label = ''            
+        VendorName = ''
+        unique_results = set()
+        actual_list = []
+        dictionary_list = []
+        AnswerDict={}
+
+        # =================================================================
+        questionInput = request.data.get('query')
+        topic_id = request.data.get('topic_id')
+        vendor_select=request.data.get('vendor_name')
+
+        correct_input = self.clean_text(questionInput)
+        inputlist = correct_input.split(" ")
+        input = spell(questionInput)
+        # =================================================================
+
         if not Topics.objects.filter(user_id=request.user.id).exists():
-            data = Topics.objects.create(user_id=request.user.id, name=usr_query)
+            data = Topics.objects.create(user_id=request.user.id, name=questionInput)
             topic_id = data.id
         else:
             if not topic_id:
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
             if not Topics.objects.filter(id=topic_id).exists():
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
-            
-        greeting_words=spell(usr_query)                             # use for greeting words
-
-        value_found=details_dict.get(greeting_words.lower().strip())     #  Get greeting values based on the user greeting query
+ 
+        input=spell(questionInput)           
+        value_found=details_dict.get(input.lower().strip())
         if value_found:
-            print(value_found)
             itenary_answer=value_found
             answer_found = True 
         else:
+
             answer_found = False 
             Selected_values_list = []
+            best_match=[]
             SelectedVendorData = None
             itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')
@@ -387,6 +379,8 @@ class Prediction(APIView):
                 all_fields = TravelBotData._meta.get_fields()
                 field_names = [field.name for field in all_fields]
                 del field_names[0]
+
+                # Create a dictionary with column name and its values without none value.
                 count = 0
                 for keys in field_names:
 
@@ -397,75 +391,122 @@ class Prediction(APIView):
                     count += 1
 
                 dictionary_list.append(actual_dict)
-        
-            # Get list of all header name
+           
+            # get only unique keysAnswerDict
             actual_keys = list(set(actual_list))
 
-            # get values of header name and its value frpm the user query
-            for items in split_user_query:
+            for items in inputlist:
                 for key in actual_keys:
                     assert items
                     if items in key.lower():
                         unique_results.add(key)
-       
-            # function to find header name
-            headerToValues=self.find_best_header_match(unique_results,split_user_query)
-            # if headerToValues:
-            #     AnswerImputList.append(headerToValues)
+
+            queryValue_dict=self.find_best_label_matches(dictionary_list,inputlist)
+            print(queryValue_dict)
+            if queryValue_dict == "None":
+                print("here")
+                filter_keys=[]
+                filter_selectedvendor_keys=[]
+                matched_selectedvendor_keys=[]
+                unique_results_list=[]
+                if vendor_select:
+                    SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor_select).values()[0]
+                    filter_keys = [key.replace("_", " ") for key in SelectedVendorData.keys()][1:]
+                    filter_values = list(SelectedVendorData.values())[1:]
+
+                    # keys filtered like from user input
+                    filter_selectedvendor_keys = [key for items in inputlist for key in filter_keys if items in key.lower()]
+
+                    # match the header keys from user input.
+                    matched_selectedvendor_keys = [rec for rec in filter_selectedvendor_keys for split_item in inputlist
+                                                if fuzz.ratio(rec.lower(), split_item.lower()) >= 90]
+
+                    # match header keys if user asks one value to more.
+                    if len(inputlist) >= 2:
+                        matched_selectedvendor_keys += unique_results_list
+
+                    elif len(inputlist) == 1:
+                        matched_selectedvendor_keys += unique_results_list
+
+                    if matched_selectedvendor_keys:
+                        for tag in matched_selectedvendor_keys:
+                            tag_ = tag.replace(" ", "_")
+                            if tag_ in SelectedVendorData and SelectedVendorData[tag_] != "nan":
+                                AnswerDict["Vendor"] = SelectedVendorData["Vendor"]
+                                AnswerDict[tag] = SelectedVendorData[tag_]
+                                
+            elif queryValue_dict["Vendor"]!=vendor_select:
+                key_matched=self.find_best_header_match(unique_results,inputlist)
+                for i in key_matched:
+                    for selectedDictKey , selectedDictValues in queryValue_dict.items():
+                        AnswerDict["Vendor"]=queryValue_dict["Vendor"]
+                        if i == selectedDictKey:
+                            AnswerDict[selectedDictKey]=selectedDictValues
+                if AnswerDict=={}:
+                    AnswerDict=queryValue_dict
+            elif queryValue_dict["Vendor"]==vendor_select:
+                    AnswerDict=queryValue_dict
+                    
+        print('Answer Dict------->>>',AnswerDict)
+        if AnswerDict:
+            maintainAnswer = ['net Cost by Experience','net Cost by Hour','net Cost Per Person Adult','net Cost Per Person Child Senior','Maximum Pax per cost','Description of the Experience']
+            AnswerDict['Place'] = AnswerDict.pop('Vendor')
+            for Vnd , Oer in AnswerDict.items():
+                for check in maintainAnswer:
+                    if check == Vnd:
+                        AnswerDict[Vnd] = "€"+AnswerDict[Vnd]
+                if Vnd == 'Time of Visit hours':
+                        AnswerDict[Vnd] = AnswerDict[Vnd]+" "+"minutes"
+                if Vnd == "Place":
+                    VendorName = Oer
+            my_string = str(AnswerDict)
+            finalresultAnswerToAPI = my_string[1:-1]
+            try:
+                    
+                r = requests.post("https://api.deepai.org/api/text-generator",{"text":finalresultAnswerToAPI},headers={'api-key':DEEP_API_KEY})
+                genratedText = r.json()
+                itenary_answer=genratedText['output']
+                extractor.load_document(input=itenary_answer, language='en')
+                extractor.candidate_selection()
+                extractor.candidate_weighting()
+                keyphrases = extractor.get_n_best(n=10)
+                if keyphrases:
+                    label = keyphrases[0][0]
+                assert itenary_answer    
+                answer_found=True
+            except Exception as e:
+                print(e)
+                return Response({"Answer":"Data not found !!!!! I am in learning Stage. "},status=status.HTTP_400_BAD_REQUEST)
+        
             
-            # function to find the vendor name from user query
-            valuesOfHeader=self.find_vendor_values(dictionary_list , split_user_query)
-            if valuesOfHeader:
-                 AnswerImputList.extend(valuesOfHeader)
-                
-            # function to find the values from the all tags column and Location column
-            tagsValues=self.find_tags_values(dictionary_list,split_user_query)
-            if tagsValues:
-                 AnswerImputList.extend(tagsValues)
-                 
-            VendorNameResultsList=[]
-            for vendor in vendor_select:
-                SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
-                del SelectedVendorData['id']
-                VendorNameResultsList.append(SelectedVendorData)
-                
-                
-            filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
-            if filtered_list:
-                dataframe = pd.DataFrame(filtered_list)
-                VandorNameList = dataframe['Vendor'].values            
-                itenary_answer=self.get_completion(dataframe,usr_query)
-            else:
-                dataframe2 = pd.DataFrame(VendorNameResultsList)
-                VandorNameList = dataframe2['Vendor'].values            
-                itenary_answer=self.get_completion(dataframe2,usr_query)   
-                   
-            extractor.load_document(input=itenary_answer, language='en')
-            extractor.candidate_selection()
-            extractor.candidate_weighting()
-            keyphrases = extractor.get_n_best(n=10)
-            if keyphrases:
-                label = keyphrases[0][0]
-            answer_found = True
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
-            if Topics.objects.filter(id=topic_id):
-                update_Vendor = Topics.objects.filter(id=topic_id).update(vendor_name=VandorNameList)   
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
+            if "Place" in AnswerDict.keys():
+                return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VendorName},status=status.HTTP_200_OK)
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":vendor_select},status=status.HTTP_200_OK)
+
         else:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=questionInput,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
+
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
-                
-            
+
+
+# 'net Cost Per Person Adult', 'net Cost Per Person Child Senior' ,'Time of Visit hours', 'net Cost by Experience' , 'net Cost by Hour' ,  'net Cost Per Person Child/Senior' 'Maximum Pax per cost'
+
+
+
+
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
 
     def get(self, request , topic_id):   #to get data from useractivity table with topic id
         try:
             user = UserProfileSerializer(request.user)
+            # topic_id = request.data.get('topic_id')
+            # print(topic_id)
             if not topic_id:
                 return Response({'status': status.HTTP_400_BAD_REQUEST, 'message':'Please enter topic_id'})
             if not UserActivity.objects.filter(user_id=user.data['id'], topic_id_id=topic_id).exists():
@@ -480,6 +521,7 @@ class ChatDetailsByID(APIView):
         except Exception as e:
             exc_type, exc_obj, exc_tb = sys.exc_info()
             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': str(str(e)+" in line "+str(exc_tb.tb_lineno))})
+
 
 class AnswerSuggestion(APIView):
     authentication_classes=[JWTAuthentication]

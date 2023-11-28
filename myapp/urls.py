@@ -1,6 +1,6 @@
 from django.urls import path 
 from myapp.views import *
-from myapp import views
+from . import views
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -12,7 +12,7 @@ urlpatterns = [
     path('userlist/', UserList.as_view(),name='csvupload'),
     path('csvupload/', UploadCsv.as_view(),name='csvupload'),
     # path('trainmodel/', TrainModel.as_view(),name='trainmodel'),
-    path('prediction/', prediction.as_view(),name='prediction'),
+    path('prediction/', Prediction.as_view(),name='prediction'),
     path('userhistory/', GetUserHistory.as_view(),name='userhistory'),
     path('add-suggestion/', AddQuestionAnswer.as_view(),name='addsuggestion'),
     path('csvfilehistory/', GetAlluploadedcsv.as_view(),name='csvfilehistory'),    

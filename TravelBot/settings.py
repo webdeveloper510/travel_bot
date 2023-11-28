@@ -94,8 +94,8 @@ DATABASES = {
         'ENGINE':   'django.db.backends.mysql',
         'NAME':     'TravelData',
         "USER":     "root",
-        "PASSWORD": "1234",
-        # "PASSWORD": "admin@123",
+        # "PASSWORD": "",
+        "PASSWORD": "admin@123",
         "HOST": "localhost",
         "PORT":"3306",
         # 'OPTIONS': {
@@ -146,8 +146,8 @@ STATICFILES_DIRS = [
 STATIC_URL = '/static/'
 MEDIA_ROOT = BASE_DIR /"static/media"
 MEDIA_URL = "/media/"
-BASE_URL='http://127.0.0.1:8000//static'
-# BASE_URL='http://16.170.254.147:8000/static'
+# BASE_URL='http://127.0.0.1:8000//static'
+BASE_URL='http://16.170.254.147:8000/static'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -176,7 +176,8 @@ SIMPLE_JWT = {
 
     "JTI_CLAIM": "jti"
 }
-DEEP_API_KEY = '2bd75f42-62c7-4e95-ae4b-57ba666a64f0'
+OPENAI_KEY = ""
+GOOGLE_MAPS_KEY = 'AIzaSyD3i9Ft7G8S38xbkfRgvonQru-sbvNYd5M'
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:8000",   

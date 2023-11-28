@@ -54,8 +54,8 @@ from keybert import KeyBERT
 
 
 
-url="http://127.0.0.1:8000/static/media/"
-# url="http://16.170.254.147:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.170.254.147:8000/static/media/"
 
 # Create your views here.
 

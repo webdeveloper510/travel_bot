@@ -61,8 +61,8 @@ from langchain.document_loaders import CSVLoader
 import ast
 from TravelBot.settings import OPENAI_KEY
 
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.170.254.147:8000/static/media/"
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 # Create your views here.
 
 def get_tokens_for_user(user):
@@ -650,7 +650,7 @@ class TopicsView(APIView):
     def get(self, request):   #to get topics list of user
         try:
             user = UserProfileSerializer(request.user)
-            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name' , 'created_at__date')
+            data = Topics.objects.filter(user_id=user.data['id']).values('id','user_id','name' , 'created_at__date','vendor_name')
             return Response({'status':status.HTTP_204_NO_CONTENT, "message":"Success", 'data': list(data)})
         except Exception as e:
             return Response({'status':  status.HTTP_204_NO_CONTENT, 'message': str(e)})

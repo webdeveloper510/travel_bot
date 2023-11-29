@@ -61,8 +61,8 @@ from langchain.document_loaders import CSVLoader
 import ast
 from TravelBot.settings import OPENAI_KEY
 
-url="http://127.0.0.1:8000/static/media/"
-# url="http://16.170.254.147:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.170.254.147:8000/static/media/"
 # Create your views here.
 
 def get_tokens_for_user(user):
@@ -217,8 +217,15 @@ details_dict={
     "support me please":"Yes Sure, How can I support you"
 }
 
+
+
+
 class Prediction(APIView):
     authentication_classes=[JWTAuthentication]
+    
+    
+    def contains_word(self, s, w):
+     return (' ' + w + ' ') in (' ' + s + ' ')
     
     # Function for user query cleaning and preprocessing 
     def clean_text(self,text):
@@ -232,23 +239,35 @@ class Prediction(APIView):
         text=BAD_SYMBOLS_RE.sub(' ',text)
         text=' '.join(word for word in text.split() if word not in STOPWORDS)
         return text
-
+   
+    
     # Function for match csv values (SQL DATABASE)
     def find_vendor_values(self, dictionary_list, input_list):
-        matches_row = []  # Initialize an empty list to store matches
-        matched_vendor=[]
-        input_list = [word for word in input_list if word.lower() != "visit"]
-        for i, data in enumerate(dictionary_list):
-            if "Vendor" in data:
-                value_list = data["Vendor"]
-                
-                current_matches = [j for j in input_list if j.lower() in value_list.lower().split()]
-                if len(current_matches) >= 2:
-                    matches_row.append(data)
-                    val=" ".join(current_matches)
-                    matched_vendor.append(val.title())
-                    
-        return matches_row
+        inputlist = list(set(input_list) - {"visit","experience","palace"})
+        header_vendor_text = "Vendor"
+        result_list = {}
+        index = 0
+        countWords = 0 
+        for index1,element in enumerate(dictionary_list):
+            value =  element.get('Vendor')
+        for d in dictionary_list:
+            for word in inputlist:
+                if header_vendor_text in d and self.contains_word(d[header_vendor_text].lower(),word.lower()):
+                    countWords = countWords + 1
+            result_list[str(index)] = countWords
+            index = index + 1
+            countWords = 0 
+        
+        # filter dict based on true value
+        filtered_dict = {key: value for key, value in result_list.items() if value != 0}
+        # print("result_list",filtered_dict)
+        
+        # Sort dictionary based on the 
+        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[1], reverse=True))
+        
+        sorted_indices = list(sorted_dict.keys())
+        filtered_dictionary_list = [dictionary_list[int(index)] for index in sorted_indices]
+        return filtered_dictionary_list
     
     # Function for getting value from tag and location column
     def find_tags_values(self, dictionary_list, input_list):
@@ -273,6 +292,7 @@ class Prediction(APIView):
             return matches_row_second_condition
         else:
             return "None"
+
 
     # Function for get header name values        
     def find_best_header_match(self,unique_results_list, inputlist):
@@ -329,7 +349,12 @@ class Prediction(APIView):
    
     def get_completion(self,dataframe,userInput):
         openai.api_key =OPENAI_KEY
-        postPrompt = "Given the provided context, generate a response that incorporates relevant information. You are allowed to perform calculations if necessary to enhance the completeness and accuracy of your answer."
+        postPrompt = (
+        "Using the provided data, generate a response with relevant information. "
+        "When referring to monetary amounts, please use the EURO sign (€) instead of English. "
+        "For example, instead of '60 EURO', write '€60'follow this currency format. "
+        "Ensure that responses are accurate, and if the necessary data is not available, provide an appropriate response."
+         )
         prompt = f"{userInput} {postPrompt}\n\nData:\n{dataframe}"
         messages = [{"role": "user", "content": prompt}]
         response = openai.ChatCompletion.create(
@@ -338,7 +363,6 @@ class Prediction(APIView):
         temperature=0,
         )
         result= response.choices[0].message["content"]
-        
         return result
     
     def post(self , request, format=None):
@@ -374,7 +398,6 @@ class Prediction(APIView):
             answer_found = True 
         else:
             answer_found = False 
-            Selected_values_list = []
             SelectedVendorData = None
             itenary_answer = None 
             service = TravelBotData.objects.all().order_by('id')

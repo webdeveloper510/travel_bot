@@ -132,7 +132,7 @@ class Topics(models.Model):
     name=models.CharField(max_length=300,blank=True,null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    vendor_name = models.CharField(max_length=255, blank=True, null=True)
+    vendor_name = models.TextField(blank=True, null=True)
     
 class UserActivity(models.Model):
     user=models.ForeignKey(User , on_delete=models.CASCADE)

@@ -22,20 +22,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from fuzzywuzzy import fuzz
 from django.utils import timezone
 from datetime import datetime
-import pickle
-import requests
-import json
 import re
 import pandas as pd
 import numpy as np
 import openai
-import nltk
 from polyfuzz import PolyFuzz
 from nltk.corpus import stopwords
 from TravelBot.settings import GOOGLE_MAPS_KEY
 from autocorrect import Speller
 spell=Speller(lang='en')
-import fuzzywuzzy
 from fuzzywuzzy import fuzz
 from langchain.chat_models import ChatOpenAI
 from fuzzywuzzy import process
@@ -43,16 +38,12 @@ from fuzzywuzzy import process
 import re
 # import string
 import pke
-import os
 from django.shortcuts import get_object_or_404
 import sys
 from textblob import TextBlob
 from nltk.stem import WordNetLemmatizer
 # initialize keyphrase extraction model, here TopicRank
 extractor = pke.unsupervised.TopicRank()
-import random
-num_random_rows = 1
-from keybert import KeyBERT
 import googlemaps
 from dotenv import load_dotenv
 load_dotenv()
@@ -60,6 +51,9 @@ from langchain.indexes import VectorstoreIndexCreator
 from langchain.document_loaders import CSVLoader
 import ast
 from TravelBot.settings import OPENAI_KEY
+from jinja2 import Template
+import spacy
+nlp=spacy.load("en_core_web_sm")
 
 # url="http://127.0.0.1:8000/static/media/"
 url="http://16.170.254.147:8000/static/media/"
@@ -223,7 +217,6 @@ details_dict={
 class Prediction(APIView):
     authentication_classes=[JWTAuthentication]
     
-    
     def contains_word(self, s, w):
      return (' ' + w + ' ') in (' ' + s + ' ')
     
@@ -252,7 +245,7 @@ class Prediction(APIView):
             value =  element.get('Vendor')
         for d in dictionary_list:
             for word in inputlist:
-                if header_vendor_text in d and self.contains_word(d[header_vendor_text].lower(),word.lower()):
+                if header_vendor_text in d and self.contains_word(d[header_vendor_text].lower().replace('hour', '').strip(),word.lower()):
                     countWords = countWords + 1
             result_list[str(index)] = countWords
             index = index + 1
@@ -273,80 +266,104 @@ class Prediction(APIView):
     def find_tags_values(self, dictionary_list, input_list):
         matches_row_first_condition = []  # Initialize an empty list to store matches
         matches_row_second_condition=[]
-        for i, data in enumerate(dictionary_list):
-            # Extract relevant fields for matching
-            fields_to_match = [data.get('Location', ''), data.get('Tag 1', ''), data.get('Tag 2', ''), data.get('Tag 3', ''),
-                            data.get("Tag 4", ""), data.get('Tag 5', ''), data.get('Tag 6', '')]
-            fields_to_match = [field.lower() for field in fields_to_match if field]
-
-            # Check if any of the query terms match the fields
-            current_matches = [word.lower() for word in input_list if word.lower() in fields_to_match]
-            if current_matches:
-                if len(set(map(len,current_matches)))==1:
-                    matches_row_first_condition.append(data)
-                elif any(len(matches) >=2 for matches in current_matches):
-                    matches_row_second_condition.append(data)
+        for  data in dictionary_list:
+            new_dict = {
+                'Location': data.get('Location', ''),
+                'Tag 1': data.get('Tag 1', ''),
+                'Tag 2': data.get('Tag 2', ''),
+                'Tag 3': data.get('Tag 3', ''),
+                'Tag 4': data.get('Tag 4', ''),
+                'Tag 5': data.get('Tag 5', ''),
+                'Tag 6': data.get('Tag 6', '')
+            }
+            for key , value in new_dict.items():
+                values=value.lower().split(" ")
+                current_matches = [word for word in input_list if word in values]
+                if current_matches:
+                    if len(set(map(len,current_matches)))==1:
+                        matches_row_first_condition.append(data)
+                        break
+                    elif any(len(matches) >=2 for matches in current_matches):
+                        matches_row_second_condition.append(data)
+                        break
         if matches_row_first_condition:
             return matches_row_first_condition
         elif matches_row_second_condition:
             return matches_row_second_condition
         else:
             return "None"
-
-
-    # Function for get header name values        
-    def find_best_header_match(self,unique_results_list, inputlist):
-        best_match = []
-        if unique_results_list:
-            for each_rec in unique_results_list:
-                for split_item in inputlist:
-                    similarity = fuzz.ratio(each_rec.lower(), split_item.lower())
-                    if similarity >= 90:    
-                        best_match.append(each_rec)
-
-        max_common_items = 0  # Initialize maximum common items
-        header_with_max_common = None  # Initialize the header with the most common items
-
-        for header in unique_results_list:
-            header_words = header.lower().split()
-            common_words = set(header_words).intersection(inputlist)
-            common_items_count = len(common_words)
-            if len(inputlist) >= 3:  # Check the length of inputlist
-                if common_items_count >= 2:
-                    if common_items_count > max_common_items:
-                        max_common_items = common_items_count
-                        header_with_max_common = header
-                        best_match.append(header_with_max_common)
-
-            elif len(inputlist) == 2:  # Run the elif condition when inputlist length is 1
-                if common_items_count == 1:
-                    best_match.append(header)
-
-        if header_with_max_common is not None and len(inputlist) >= 2:
-            best_match.append(header_with_max_common)
-
-        return list(set(best_match)) # Return the best_match list
-
-
+    
+    # function to get intent from user query to check that user ask about whch column data
+    def get_header_name(self, unique_results, inputlist):
+        result_list = {}
+        for index, tag in enumerate(unique_results):
+            count_words = 0
+            for word in inputlist:
+                matched_header = self.contains_word(tag.lower(), word)
+                count_words += 1 if matched_header else 0  # Increment count if the word is present
+            
+            result_list[str(index)] = count_words
+        filtered_dict = {key: value for key, value in result_list.items() if value != 0}
+        # Sort dictionary based on the 
+        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[1], reverse=True))
+        sorted_indices = list(sorted_dict.keys())
+        filtered_header= [unique_results[int(index)] for index in sorted_indices]
+        return filtered_header
+    
     # function for check google ask by google maps
     def findMapIntent(self,inputlist):
         PropertiesMatchMaps = []
-        GMapsProperties = ["Direction","Directions","Navigate","Route","How to get to","Driving directions","Walking directions","Public transportation","Nearby places","Places around","Points of interest","What's near","Traffic","Traffic conditions","Traffic update","Estimated time","Traffic jam","Distance","How far is","Duration","Time to","Map of","Show me a map","View map","Geocoding:","Latitude and longitude of","Address of","coordinates","Details of","Information about","Tell me about","Description of","Alternative routes","Other ways to","Different route","Named places (e.g., cities, landmarks)","Specific addresses","Specific","Google Maps","What can you do with Google Maps?","How does Google Maps work?"]
+        GMapsProperties = ["Direction","Navigate","Route","Driving directions","Walking directions","Turn navigation","Waypoints",
+                            "Public transportation","Points of interest","What's near","Traffic","GPS (Global Positioning System)","GPS","Landmarks",
+                            "Estimated time","Traffic jam","Distance","far","Duration","Time to","Real-time traffic","Specific","Maps"
+                            "Map of","Geocoding:","Latitude","longitude","coordinates","Street","Calculate","Travel",
+                            "Alternative","Other ways to","Different route"]
         for each_rec in GMapsProperties:
             for split_item in inputlist:
                 similarity = fuzz.ratio(each_rec.lower(), split_item.lower())
-                if similarity >= 75:    
+                if similarity >= 65:    
                     PropertiesMatchMaps.append(each_rec)
         return PropertiesMatchMaps
-                
+    
     # function for get the distance between two location with three mode
-    def getDistanceAndtime(self,origin_direction ,destination,mode):
+    def Calcuate_distance_time(self,origin_direction ,destination,mode):
+        results={}
         gmaps = googlemaps.Client(key=GOOGLE_MAPS_KEY)
         directions_result = gmaps.directions(origin_direction, destination, mode)
-        kmdistance=directions_result[0]['legs'][0]['distance']['text']
-        hrsmindistance=directions_result[0]['legs'][0]['duration']['text']
-        return f"Distance between {origin_direction} to {destination} is {kmdistance} and total time visit is {hrsmindistance}"
-   
+        distance=directions_result[0]['legs'][0]['distance']['text']
+        duration=directions_result[0]['legs'][0]['duration']['text']
+        results[mode] = f"The distance from {origin_direction} to {destination} is {distance} and its time is {duration}"
+        return results
+    
+    # function for get the location distance and time between locations
+    def find_distance_time_locations(self, dictionary_list, split_user_query):
+        location_tag = "Location"
+        modes = ["transit", "walking", "driving"]    
+        loc_values = []
+        mode_results = []
+
+        for data_dict in dictionary_list:
+            values = data_dict.get(location_tag)
+            if values is not None and values.lower() in split_user_query:
+                if values not in loc_values:
+                    loc_values.append(values)
+        if len(loc_values) == 2:
+            print("If condition is running")
+            for mode in modes:
+                distance_time = self.Calcuate_distance_time(loc_values[0], loc_values[1], mode)
+                mode_results.append(distance_time)
+            
+        elif len(loc_values) > 2:
+            print("Elif ccondition is running")
+            for i in range(len(loc_values) - 1):
+                for mode in modes:
+                    values = f"{loc_values[i]} {loc_values[i + 1]}".split(" ")
+                    distance_time = self.Calcuate_distance_time(values[0], values[1], mode)
+                    mode_results.append(distance_time)
+        return mode_results
+
+    
+    # chatgpt function
     def get_completion(self,dataframe,userInput):
         openai.api_key =OPENAI_KEY
         postPrompt = (
@@ -365,6 +382,23 @@ class Prediction(APIView):
         result= response.choices[0].message["content"]
         return result
     
+    # def generate_itinerary(data):
+    def generate_response(self, data):
+        response_template = Template("""
+        <ul>
+            {% if "Vendor" in data %}
+                <h1>  Vendor: {{ data["Vendor"] }} </h1>
+            {% endif %}
+            {% for key, value in data.items() %}
+                {% if key != "Vendor" and value !=None %}
+                    <p> {{ key }} : {{ value }} </p>
+                {% endif %}
+            {% endfor %}
+        </ul>
+        """)
+        response = response_template.render(data=data)
+        return response
+        
     def post(self , request, format=None):
         answer_found=False
         unique_results = set()         # list of unique header name
@@ -374,12 +408,15 @@ class Prediction(APIView):
         VandorNameList = []
         label = ''
         
+        #  Get Data From User "=========================================="
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
         vendor_get=request.data.get("vendor_name")
 
+        # Preprocess User Query =========================================
         clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
         split_user_query=clean_usr_query.split(" ")                 # split user query by space
+        
         if not Topics.objects.filter(user_id=request.user.id).exists():
             data = Topics.objects.create(user_id=request.user.id, name=usr_query)
             topic_id = data.id
@@ -388,14 +425,16 @@ class Prediction(APIView):
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Please enter topic_id"})
             if not Topics.objects.filter(id=topic_id).exists():
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
-            
+          
+        #  Make Greeting Response ====================================== 
         greeting_words=spell(usr_query)                             # use for greeting words
-
         value_found=details_dict.get(greeting_words.lower().strip())     #  Get greeting values based on the user greeting query
         if value_found:
-            print(value_found)
             itenary_answer=value_found
             answer_found = True 
+            
+            
+        # Make Response From Database based on user query   =========================================    
         else:
             answer_found = False 
             SelectedVendorData = None
@@ -409,20 +448,19 @@ class Prediction(APIView):
                 all_fields = TravelBotData._meta.get_fields()
                 field_names = [field.name for field in all_fields]
                 del field_names[0]
+                
+                # Make a List of Dicitinaries of Database data as per row =============================
                 count = 0
                 for keys in field_names:
-
                     keys_replace = keys.replace("_", " ")
                     if newList[count] != "nan" and newList[count] != " ":
                         actual_dict[keys_replace] = newList[count]
                         actual_list.append(keys_replace)
                     count += 1
-
                 dictionary_list.append(actual_dict)
         
             # Get list of all header name
             actual_keys = list(set(actual_list))
-
             # get values of header name and its value frpm the user query
             for items in split_user_query:
                 for key in actual_keys:
@@ -430,48 +468,107 @@ class Prediction(APIView):
                     if items in key.lower():
                         unique_results.add(key)
        
-            # function to find header name
-            headerToValues=self.find_best_header_match(unique_results,split_user_query)
-            # if headerToValues:
-            #     AnswerImputList.append(headerToValues)
-            
-            # function to find the vendor name from user query
+            # Call Vendor Function to get Vendor name from user query ========================================
             valuesOfHeader=self.find_vendor_values(dictionary_list , split_user_query)
             if valuesOfHeader:
-                 AnswerImputList.extend(valuesOfHeader)
+                AnswerImputList.extend(valuesOfHeader)
                 
-            # function to find the values from the all tags column and Location column
+            # Call Tag Functions to get values from tags column and location columns =======================================
             tagsValues=self.find_tags_values(dictionary_list,split_user_query)
+            print('tag values===================>>>',tagsValues)
             if tagsValues:
-                 AnswerImputList.extend(tagsValues)
-                 
-            VendorNameResultsList=[]
-
+                # print("tagsValues========>>>",tagsValues)
+                AnswerImputList.extend(tagsValues)
                 
                 
+            # Find the result pf google maps
+            Google_intent_find=self.findMapIntent(split_user_query)
+           
+            # Call function for  check user query intent 
+            headerToValues=self.get_header_name(actual_keys,split_user_query)
+            "-------------------------------------------------------------Final Answer list of dictionary-----------------------------------------"
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
-            if filtered_list:
-                dataframe = pd.DataFrame(filtered_list)
-                VandorNameList = dataframe['Vendor'].values            
-                itenary_answer=self.get_completion(dataframe,usr_query)
-            else:
+            places_list=["near by", "places","place","around","around places","activity","activities",]
+            tag_list=["tag 1","tag 2","tag 3","tag 4","tag 5","tag 6"]
+           
+            # Make a Code for get result in html tags =================================================================
+            if filtered_list and headerToValues:
+                result_list = []
+                vendor_value="Vendor"
+                for index, res_dict in enumerate(filtered_list, start=1):
+                    current_dict = {}
+                    for Header in headerToValues:
+                        if Header.lower() in tag_list:
+                            new_header = "Associated Places"
+                        else:
+                            new_header = Header
+                        values = res_dict.get(Header)
+                        current_dict[new_header] = values
+                    result_list.append(current_dict.copy())
+                    if res_dict[vendor_value] not in  VandorNameList:
+                        VandorNameList.append(res_dict[vendor_value])
+                # Accumulate responses for each data in result_list
+                itenary_answer = [self.generate_response(data) for data in result_list]
+
+            # Condition for when user ask about values of data not column.
+            elif len(filtered_list) > 0 and len(headerToValues) == 0:
+                itenary_answer = []
+                vendor_value="Vendor"
+                for data in filtered_list:
+                    updated_data = {}
+                    for key, value in data.items():
+                        if key.lower() in tag_list:
+                            updated_data['Associated Places'] = value
+                        else:
+                            updated_data[key] = value
+                    if updated_data[vendor_value] not in VandorNameList:
+                        VandorNameList.append(updated_data[vendor_value])
+                    itenary_answer.append(self.generate_response(updated_data))
+                    
+            # if Vendor list empty then run this code.
+            if not VandorNameList:
+                new_dict = {}
+                itenary_answer = []  
+                vendor_text="Vendor"
                 if vendor_get:
-                    vendor_select=ast.literal_eval(vendor_get)
+                    vendor_select = ast.literal_eval(vendor_get)
                     for vendor in vendor_select:
-                        SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
-                        del SelectedVendorData['id']
-                        VendorNameResultsList.append(SelectedVendorData)
-                dataframe2 = pd.DataFrame(VendorNameResultsList)
-                VandorNameList = dataframe2['Vendor'].values            
-                itenary_answer=self.get_completion(dataframe2,usr_query)   
-                   
-            extractor.load_document(input=itenary_answer, language='en')
-            extractor.candidate_selection()
-            extractor.candidate_weighting()
-            keyphrases = extractor.get_n_best(n=10)
-            if keyphrases:
-                label = keyphrases[0][0]
+                        current_dict = {}
+                        for head_er in headerToValues:
+                            SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
+                            del SelectedVendorData['id']
+                            for original_key, value in SelectedVendorData.items():
+                                new_key = original_key.replace("_", " ")
+                                new_dict[new_key] = value
+                            if new_dict[vendor_text] not in  VandorNameList:
+                                VandorNameList.append(new_dict[vendor_text])
+                        for Header in headerToValues:
+                            if Header.lower() in tag_list:
+                                new_header = "Associated Places"
+                            else:
+                                new_header = Header
+                            values = new_dict.get(Header)
+                            current_dict[new_header] = values
+                        itenary_answer.append(self.generate_response(current_dict))
+                
+            else:
+                itenary_answer
+                
+                if Google_intent_find:
+                    map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
+                    itenary_answer1= [self.generate_response(d_dict) for d_dict in map_rslt_list]
+                    itenary_answer=itenary_answer+itenary_answer1
+                else:
+                    itenary_answer
+            for ans in itenary_answer:
+                extractor.load_document(input=ans, language='en')
+                extractor.candidate_selection()
+                extractor.candidate_weighting()
+                keyphrases = extractor.get_n_best(n=10)
+                if keyphrases:
+                    label = keyphrases[0][0]
             answer_found = True
+        
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date

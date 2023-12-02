@@ -57,9 +57,9 @@ nlp=spacy.load("en_core_web_sm")
 
 # url="http://127.0.0.1:8000/static/media/"
 url="http://16.170.254.147:8000/static/media/"
-# Create your views here.
+# Create your views\ here.
 
-def get_tokens_for_user(user):
+def get_tokens_for_user(user):  
     refresh = RefreshToken.for_user(user)
     return {
         # 'refresh': str(refresh),
@@ -332,13 +332,13 @@ class Prediction(APIView):
         directions_result = gmaps.directions(origin_direction, destination, mode)
         distance=directions_result[0]['legs'][0]['distance']['text']
         duration=directions_result[0]['legs'][0]['duration']['text']
-        results[mode] = f"The distance from {origin_direction} to {destination} is {distance} and its time is {duration}"
+        results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
         return results
     
     # function for get the location distance and time between locations
     def find_distance_time_locations(self, dictionary_list, split_user_query):
         location_tag = "Location"
-        modes = ["transit", "walking", "driving"]    
+        modes = ['driving', 'walking', 'transit']  
         loc_values = []
         mode_results = []
 
@@ -387,11 +387,11 @@ class Prediction(APIView):
         response_template = Template("""
         <ul>
             {% if "Vendor" in data %}
-                <h1>  Vendor: {{ data["Vendor"] }} </h1>
+                <h4>  Vendor: {{ data["Vendor"] }} </h4>
             {% endif %}
             {% for key, value in data.items() %}
                 {% if key != "Vendor" and value !=None %}
-                    <p> {{ key }} : {{ value }} </p>
+                    - <p> {{ key }} : {{ value }} </p>
                 {% endif %}
             {% endfor %}
         </ul>
@@ -436,6 +436,19 @@ class Prediction(APIView):
             
         # Make Response From Database based on user query   =========================================    
         else:
+            
+            replacement_mapping = {
+            'net Cost by Experience': 'Cost of Experience',
+            'net Cost Per Person Adult': 'Cost Per Person',
+            'Maximum Pax per cost': 'Maximum Cost',
+            'net Cost Per Person Child Senior': 'Cost Per Person Child/Senior',
+            'net Cost by Hour': 'Hourly Cost',
+            'Is The Guide Included in the cost': 'Guide Included cost'
+            }
+            euro_keys = ['Cost of Experience', 'Cost Per Person Child/Senior', 'Cost Per Person','Maximum Cost']
+            tag_list=["tag 1","tag 2","tag 3","tag 4","tag 5","tag 6"]
+        
+            
             answer_found = False 
             SelectedVendorData = None
             itenary_answer = None 
@@ -475,7 +488,6 @@ class Prediction(APIView):
                 
             # Call Tag Functions to get values from tags column and location columns =======================================
             tagsValues=self.find_tags_values(dictionary_list,split_user_query)
-            print('tag values===================>>>',tagsValues)
             if tagsValues:
                 # print("tagsValues========>>>",tagsValues)
                 AnswerImputList.extend(tagsValues)
@@ -488,8 +500,6 @@ class Prediction(APIView):
             headerToValues=self.get_header_name(actual_keys,split_user_query)
             "-------------------------------------------------------------Final Answer list of dictionary-----------------------------------------"
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
-            places_list=["near by", "places","place","around","around places","activity","activities",]
-            tag_list=["tag 1","tag 2","tag 3","tag 4","tag 5","tag 6"]
            
             # Make a Code for get result in html tags =================================================================
             if filtered_list and headerToValues:
@@ -500,9 +510,13 @@ class Prediction(APIView):
                     for Header in headerToValues:
                         if Header.lower() in tag_list:
                             new_header = "Associated Places"
+                            new_header = replacement_mapping.get(Header, Header)
                         else:
-                            new_header = Header
+                            # new_header = Header
+                            new_header = replacement_mapping.get(Header, Header)
                         values = res_dict.get(Header)
+                        if new_header in euro_keys and values is not None:
+                            values = f'€ {values}'
                         current_dict[new_header] = values
                     result_list.append(current_dict.copy())
                     if res_dict[vendor_value] not in  VandorNameList:
@@ -520,9 +534,14 @@ class Prediction(APIView):
                         if key.lower() in tag_list:
                             updated_data['Associated Places'] = value
                         else:
-                            updated_data[key] = value
+                            new_header = replacement_mapping.get(key, key)
+                            if new_header in euro_keys and value is not None:
+                                value = f'€ {value}'  # Corrected this line
+                            updated_data[new_header] = value
+                            
                     if updated_data[vendor_value] not in VandorNameList:
                         VandorNameList.append(updated_data[vendor_value])
+                        
                     itenary_answer.append(self.generate_response(updated_data))
                     
             # if Vendor list empty then run this code.
@@ -545,15 +564,18 @@ class Prediction(APIView):
                         for Header in headerToValues:
                             if Header.lower() in tag_list:
                                 new_header = "Associated Places"
+                                new_header = replacement_mapping.get(Header, Header)
                             else:
                                 new_header = Header
+                                new_header = replacement_mapping.get(Header, Header)
                             values = new_dict.get(Header)
+                            if new_header in euro_keys and values is not None:
+                                values = f'€ {values}'
                             current_dict[new_header] = values
                         itenary_answer.append(self.generate_response(current_dict))
                 
             else:
                 itenary_answer
-                
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
                     itenary_answer1= [self.generate_response(d_dict) for d_dict in map_rslt_list]

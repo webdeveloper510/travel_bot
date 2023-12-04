@@ -387,13 +387,13 @@ class Prediction(APIView):
         return result
     
     # def generate_itinerary(data):
-    def generate_response(self, data, idx):
+    def generate_response(self, data, idx,start=1):
         response_template = Template("""                                                  
         <ul>
       
             {% for key, value in data.items() %}
                 {% if key == "Vendor" %}
-                    <h4>{{ idx }}: {{ value }}</h4>
+                    <h4>{{ idx + start }}: {{ value }}</h4>
                    
                 {% elif key !="Vendor" and  value is not none %}
                     <li> - {{ key }}: {{ value }}</li>
@@ -401,7 +401,7 @@ class Prediction(APIView):
             {% endfor %}
         </ul>
         """)
-        response = response_template.render(data=data, idx=idx)
+        response = response_template.render(data=data, idx=idx,start=start)
         return response
         
     def post(self , request, format=None):
@@ -566,7 +566,7 @@ class Prediction(APIView):
                                 new_dict[new_key] = value
                             if new_dict[vendor_text] not in  VandorNameList:
                                 VandorNameList.append(new_dict[vendor_text])
-                        for Header in headerToValues:
+                        for idx,Header in enumerate(headerToValues):
                             if Header.lower() in tag_list:
                                 new_header = "Associated Places"
                                 new_header = replacement_mapping.get(Header, Header)
@@ -577,7 +577,7 @@ class Prediction(APIView):
                             if new_header in euro_keys and values is not None:
                                 values = f'€{values}'
                             current_dict[new_header] = values
-                        itenary_answer.append(self.generate_response(current_dict))
+                        itenary_answer.append(self.generate_response(current_dict,idx))
                 
             else:
                 itenary_answer

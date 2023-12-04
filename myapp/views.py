@@ -405,6 +405,19 @@ class Prediction(APIView):
         response = response_template.render(data=data, idx=idx,start=start)
         return response
     
+    def get_html_tag(self,ans):
+        details = []
+        soup = BeautifulSoup(ans, 'html.parser')
+
+        title_element = soup.find('h4')
+        title = title_element.text.strip() if title_element else None
+        for li in soup.find_all('li'):
+            key = li.contents[0].strip()
+            value = li.contents[1].strip() if len(li.contents) > 1 else ''
+            details.append(f'- {key}: {value}')
+            
+        itenary_answer = "{}:\n{}\n\n".format(title, '\n'.join(details)) if title else '\n'.join(details) + '\n\n'
+        return itenary_answer
     
     def post(self , request, format=None):
         answer_found=False
@@ -415,6 +428,8 @@ class Prediction(APIView):
         VandorNameList = []
         label = ''
         
+        final_itenary_ans=None
+        itenary_answer=None
         #  Get Data From User "=========================================="
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
@@ -443,7 +458,6 @@ class Prediction(APIView):
             
         # Make Response From Database based on user query   =========================================    
         else:
-            
             replacement_mapping = {
             'net Cost by Experience': 'Cost of Experience',
             'net Cost Per Person Adult': 'Cost Per Person',
@@ -454,7 +468,6 @@ class Prediction(APIView):
             }
             euro_keys = ['Cost of Experience', 'Cost Per Person Child/Senior', 'Cost Per Person','Maximum Cost']
             tag_list=["tag 1","tag 2","tag 3","tag 4","tag 5","tag 6"]
-        
             
             answer_found = False 
             SelectedVendorData = None
@@ -589,45 +602,30 @@ class Prediction(APIView):
                     itenary_answer=itenary_answer+itenary_answer1
                 else:
                     itenary_answer
-            
-            formatted_output = "" 
+                
             for ans in itenary_answer:
-                if ans:
-                    details = []
-                    soup = BeautifulSoup(ans, 'html.parser')
-
-                    title_element = soup.find('h4')
-                    title = title_element.text.strip() if title_element else None
-                    for li in soup.find_all('li'):
-                        key = li.contents[0].strip()
-                        value = li.contents[1].strip() if len(li.contents) > 1 else ''
-                        details.append(f'- {key}: {value}')
-                        
-                    formatted_output += "{}:\n{}\n\n".format(title, '\n'.join(details)) if title else '\n'.join(details) + '\n\n'
-                    extractor.load_document(input=ans, language='en')
-                    extractor.candidate_selection()
-                    extractor.candidate_weighting()
-                    keyphrases = extractor.get_n_best(n=10)
-                    if keyphrases:
-                        label = keyphrases[0][0]
-
-            # Move the rest of the code outside the loop
-        answer_found = bool(formatted_output)
-        print("Formatted================>>>",formatted_output)
+                extractor.load_document(input=ans, language='en')
+                extractor.candidate_selection()
+                extractor.candidate_weighting()
+                keyphrases = extractor.get_n_best(n=10)
+                if keyphrases:  
+                    label = keyphrases[0][0]
+                answer_found=True
+                
+            itenary_answer=[self.get_html_tag(ans) for ans in itenary_answer]
+            print("itenary_answer========>>",final_itenary_ans)
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=formatted_output, topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
             if Topics.objects.filter(id=topic_id):
                 update_Vendor = Topics.objects.filter(id=topic_id).update(vendor_name=VandorNameList)   
-            return Response({"Answer":formatted_output,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
+            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
         else:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
                 
-  
-
      
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]

@@ -50,11 +50,12 @@ load_dotenv()
 from langchain.indexes import VectorstoreIndexCreator
 from langchain.document_loaders import CSVLoader
 import ast
-from TravelBot.settings import OPENAI_KEY
+import requests
+from TravelBot.settings import DEEP_API_KEY
 from jinja2 import Template
 import spacy
 nlp=spacy.load("en_core_web_sm")
-
+from bs4 import BeautifulSoup
 # url="http://127.0.0.1:8000/static/media/"
 url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
@@ -403,7 +404,8 @@ class Prediction(APIView):
         """)
         response = response_template.render(data=data, idx=idx,start=start)
         return response
-        
+    
+    
     def post(self , request, format=None):
         answer_found=False
         unique_results = set()         # list of unique header name
@@ -587,28 +589,46 @@ class Prediction(APIView):
                     itenary_answer=itenary_answer+itenary_answer1
                 else:
                     itenary_answer
+            
+            formatted_output = "" 
             for ans in itenary_answer:
-                extractor.load_document(input=ans, language='en')
-                extractor.candidate_selection()
-                extractor.candidate_weighting()
-                keyphrases = extractor.get_n_best(n=10)
-                if keyphrases:
-                    label = keyphrases[0][0]
-            answer_found = True
-        
+                if ans:
+                    details = []
+                    soup = BeautifulSoup(ans, 'html.parser')
+
+                    title_element = soup.find('h4')
+                    title = title_element.text.strip() if title_element else None
+                    for li in soup.find_all('li'):
+                        key = li.contents[0].strip()
+                        value = li.contents[1].strip() if len(li.contents) > 1 else ''
+                        details.append(f'- {key}: {value}')
+                        
+                    formatted_output += "{}:\n{}\n\n".format(title, '\n'.join(details)) if title else '\n'.join(details) + '\n\n'
+                    extractor.load_document(input=ans, language='en')
+                    extractor.candidate_selection()
+                    extractor.candidate_weighting()
+                    keyphrases = extractor.get_n_best(n=10)
+                    if keyphrases:
+                        label = keyphrases[0][0]
+
+            # Move the rest of the code outside the loop
+        answer_found = bool(formatted_output)
+        print("Formatted================>>>",formatted_output)
         if answer_found:
-            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
+            conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=formatted_output, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
             datetime_obj = datetime.strptime(str(date_time), "%Y-%m-%d %H:%M:%S.%f%z")  # Use the correct format
             formatted_time = datetime_obj.strftime("%H:%M:%S")
             if Topics.objects.filter(id=topic_id):
                 update_Vendor = Topics.objects.filter(id=topic_id).update(vendor_name=VandorNameList)   
-            return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
+            return Response({"Answer":formatted_output,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
         else:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
                 
-            
+  
+
+     
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
 

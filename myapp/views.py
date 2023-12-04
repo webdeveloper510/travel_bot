@@ -327,13 +327,17 @@ class Prediction(APIView):
     
     # function for get the distance between two location with three mode
     def Calcuate_distance_time(self,origin_direction ,destination,mode):
-        results={}
         gmaps = googlemaps.Client(key=GOOGLE_MAPS_KEY)
         directions_result = gmaps.directions(origin_direction, destination, mode)
         distance=directions_result[0]['legs'][0]['distance']['text']
         duration=directions_result[0]['legs'][0]['duration']['text']
-        results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
-        return results
+        # results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
+        response_dict={
+            "Mode":{mode.title()},
+            "Distance":f"Distance between {origin_direction} to {destination} is {distance}",
+            "Duration":f" Time Duration is {duration}" 
+        }
+        return response_dict
     
     # function for get the location distance and time between locations
     def find_distance_time_locations(self, dictionary_list, split_user_query):
@@ -383,20 +387,21 @@ class Prediction(APIView):
         return result
     
     # def generate_itinerary(data):
-    def generate_response(self, data):
-        response_template = Template("""
+    def generate_response(self, data, idx):
+        response_template = Template("""                                                  
         <ul>
-            {% if "Vendor" in data %}
-                <h4>  Vendor: {{ data["Vendor"] }} </h4>
-            {% endif %}
+      
             {% for key, value in data.items() %}
-                {% if key != "Vendor" and value !=None %}
-                    - <p> {{ key }} : {{ value }} </p>
+                {% if key == "Vendor" %}
+                    <h4>{{ idx }}: {{ value }}</h4>
+                   
+                {% elif key !="Vendor" and  value is not none %}
+                    <li> - {{ key }}: {{ value }}</li>
                 {% endif %}
             {% endfor %}
         </ul>
         """)
-        response = response_template.render(data=data)
+        response = response_template.render(data=data, idx=idx)
         return response
         
     def post(self , request, format=None):
@@ -516,19 +521,19 @@ class Prediction(APIView):
                             new_header = replacement_mapping.get(Header, Header)
                         values = res_dict.get(Header)
                         if new_header in euro_keys and values is not None:
-                            values = f'€ {values}'
+                            values = f'€{values}'
                         current_dict[new_header] = values
                     result_list.append(current_dict.copy())
                     if res_dict[vendor_value] not in  VandorNameList:
                         VandorNameList.append(res_dict[vendor_value])
                 # Accumulate responses for each data in result_list
-                itenary_answer = [self.generate_response(data) for data in result_list]
+                itenary_answer = [self.generate_response(data,idx) for idx,data in enumerate(result_list)]
 
             # Condition for when user ask about values of data not column.
             elif len(filtered_list) > 0 and len(headerToValues) == 0:
                 itenary_answer = []
                 vendor_value="Vendor"
-                for data in filtered_list:
+                for idx,data in enumerate(filtered_list):
                     updated_data = {}
                     for key, value in data.items():
                         if key.lower() in tag_list:
@@ -536,13 +541,13 @@ class Prediction(APIView):
                         else:
                             new_header = replacement_mapping.get(key, key)
                             if new_header in euro_keys and value is not None:
-                                value = f'€ {value}'  # Corrected this line
+                                value = f'€{value}'  # Corrected this line
                             updated_data[new_header] = value
                             
                     if updated_data[vendor_value] not in VandorNameList:
                         VandorNameList.append(updated_data[vendor_value])
                         
-                    itenary_answer.append(self.generate_response(updated_data))
+                    itenary_answer.append(self.generate_response(updated_data, idx))
                     
             # if Vendor list empty then run this code.
             if not VandorNameList:
@@ -570,7 +575,7 @@ class Prediction(APIView):
                                 new_header = replacement_mapping.get(Header, Header)
                             values = new_dict.get(Header)
                             if new_header in euro_keys and values is not None:
-                                values = f'€ {values}'
+                                values = f'€{values}'
                             current_dict[new_header] = values
                         itenary_answer.append(self.generate_response(current_dict))
                 
@@ -578,7 +583,7 @@ class Prediction(APIView):
                 itenary_answer
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
-                    itenary_answer1= [self.generate_response(d_dict) for d_dict in map_rslt_list]
+                    itenary_answer1= [self.generate_response(d_dict, idx=0) for idx, d_dict in enumerate(map_rslt_list)]
                     itenary_answer=itenary_answer+itenary_answer1
                 else:
                     itenary_answer

@@ -334,7 +334,7 @@ class Prediction(APIView):
         duration=directions_result[0]['legs'][0]['duration']['text']
         # results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
         response_dict={
-            "Mode":{mode.title()},
+            "Mode":f"Mode :{mode.title()}",
             "Distance":f"Distance between {origin_direction} to {destination} is {distance}",
             "Duration":f" Time Duration is {duration}" 
         }
@@ -393,9 +393,8 @@ class Prediction(APIView):
         <ul>
       
             {% for key, value in data.items() %}
-                {% if key == "Vendor" %}
+                {% if key == "Vendor" or key=="Mode" %}
                     <h4>{{ idx + start }}: {{ value }}</h4>
-                   
                 {% elif key !="Vendor" and  value is not none %}
                     <li> - {{ key }}: {{ value }}</li>
                 {% endif %}
@@ -408,15 +407,13 @@ class Prediction(APIView):
     def get_html_tag(self,ans):
         details = []
         soup = BeautifulSoup(ans, 'html.parser')
-
-        title_element = soup.find('h4')
-        title = title_element.text.strip() if title_element else None
+        title_element = soup.find('h4') 
+        
         for li in soup.find_all('li'):
             key = li.contents[0].strip()
             value = li.contents[1].strip() if len(li.contents) > 1 else ''
             details.append(f'- {key}: {value}')
-            
-        itenary_answer = "{}:\n{}\n\n".format(title, '\n'.join(details)) if title else '\n'.join(details) + '\n\n'
+        itenary_answer = "{}\n{}\n\n".format(title_element, '\n'.join(details)) if title_element else '\n'.join(details) + '\n\n'
         return itenary_answer
     
     def post(self , request, format=None):
@@ -598,7 +595,8 @@ class Prediction(APIView):
                 itenary_answer
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
-                    itenary_answer1= [self.generate_response(d_dict, idx=0) for idx, d_dict in enumerate(map_rslt_list)]
+                    itenary_answer1= [self.generate_response(d_dict, idx) for idx, d_dict in enumerate(map_rslt_list)]
+                    print("itenary_answer1=======",itenary_answer1)
                     itenary_answer=itenary_answer+itenary_answer1
                 else:
                     itenary_answer

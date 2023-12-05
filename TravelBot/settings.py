@@ -177,7 +177,7 @@ SIMPLE_JWT = {
     "JTI_CLAIM": "jti"
 }
 DEEP_API_KEY = ""
-GOOGLE_MAPS_KEY = 'AIzaSyD3i9Ft7G8S38xbkfRgvonQru-sbvNYd5M'
+GOOGLE_MAPS_KEY = ''
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:8000",   

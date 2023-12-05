@@ -531,6 +531,7 @@ class Prediction(APIView):
             
             
             if filtered_list and headerToValues:
+                print("Both list True")
                 result_list = []
                 vendor_value="Vendor"
                 for index, res_dict in enumerate(filtered_list, start=1):
@@ -545,6 +546,7 @@ class Prediction(APIView):
                         values = res_dict.get(Header)
                         if new_header in euro_keys and values is not None:
                             values = f'€{values}'
+                        current_dict["Vendor"]=res_dict[vendor_value] 
                         current_dict[new_header] = values
                     result_list.append(current_dict.copy())
                     if res_dict[vendor_value] not in  VandorNameList:
@@ -554,6 +556,7 @@ class Prediction(APIView):
 
             # Condition for when user ask about values of data not column.
             elif len(filtered_list) > 0 and len(headerToValues) == 0:
+                print("only filtered_list list True")
                 itenary_answer = []
                 vendor_value="Vendor"
                 for idx2,data in enumerate(filtered_list):

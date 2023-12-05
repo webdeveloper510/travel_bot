@@ -101,10 +101,8 @@ class UserChangePasswordSerializer(serializers.Serializer):
     user.save()
     return attrs
             
-# class QuestionAndAnswerSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model= QuestionAndAnswer
-#         fields = '__all__'
-           
-#     def create(self, validate_data):
-#         return QuestionAndAnswer.objects.create(**validate_data)
+            
+class TravelFormSubmitSerializer(serializers.Serializer):
+   class Meta:
+      model = UserDetailGethringForm
+      fields = '__all__'

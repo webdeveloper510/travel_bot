@@ -235,6 +235,12 @@ class Prediction(APIView):
         return text
    
     
+    # function for getting the synonym from user query
+    def find_synonyms(self,text):
+        from nltk.corpus import wordnet
+        synonyms_list=list(set([l.name() for syn in wordnet.synsets(text) for l in syn.lemmas()]))
+        return synonyms_list
+    
     # Function for match csv values (SQL DATABASE)
     def find_vendor_values(self, dictionary_list, input_list):
         inputlist = list(set(input_list) - {"visit","experience","palace"})
@@ -263,6 +269,7 @@ class Prediction(APIView):
     
     # Function for getting value from tag and location column
     def find_tags_values(self, dictionary_list, input_list):
+        print("input_list=======================>>>",input_list)
         matches_row_first_condition = []  # Initialize an empty list to store matches
         matches_row_second_condition=[]
         for  data in dictionary_list:
@@ -294,6 +301,7 @@ class Prediction(APIView):
     
     # function to get intent from user query to check that user ask about whch column data
     def get_header_name(self, unique_results, inputlist):
+        inputlist = list(set(inputlist) - {"visit"})
         result_list = {}
         for index, tag in enumerate(unique_results):
             count_words = 0
@@ -430,10 +438,11 @@ class Prediction(APIView):
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
         vendor_get=request.data.get("vendor_name")
-       
+
         # Preprocess User Query =========================================
         if usr_query:
-            clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
+            correct_user_input=spell(usr_query)
+            clean_usr_query=self.clean_text(correct_user_input)                  # clean and preprocess user query
             split_user_query=clean_usr_query.split(" ")                 # split user query by space
         else: 
             return Response({"Answer":"Data Not Found" },status=status.HTTP_400_BAD_REQUEST) 
@@ -448,8 +457,7 @@ class Prediction(APIView):
                 return Response({'status':status.HTTP_404_NOT_FOUND, 'message':"Invalid topic_id"})
           
         #  Make Greeting Response ====================================== 
-        greeting_words=spell(usr_query)                             # use for greeting words
-        value_found=details_dict.get(greeting_words.lower().strip())     #  Get greeting values based on the user greeting query
+        value_found=details_dict.get(correct_user_input.lower().strip())     #  Get greeting values based on the user greeting query
         if value_found:
             itenary_answer=value_found
             answer_found = True 
@@ -528,8 +536,8 @@ class Prediction(APIView):
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
            
             # Make a Code for get result in html tags =================================================================
-            
-            
+            print("headerToValues============>>>",headerToValues)
+            print()
             if filtered_list and headerToValues:
                 print("Both list True")
                 result_list = []
@@ -549,7 +557,9 @@ class Prediction(APIView):
                         if values:
                             current_dict["Vendor"]=res_dict[vendor_value] 
                             current_dict[new_header] = values
-                    result_list.append(current_dict.copy())
+                    if current_dict:
+                        # print('current_dict ===========>>>',current_dict)
+                        result_list.append(current_dict.copy())
                     if res_dict[vendor_value] not in  VandorNameList:
                         VandorNameList.append(res_dict[vendor_value])
                 # Accumulate responses for each data in result_list
@@ -650,7 +660,83 @@ class Prediction(APIView):
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
                 
-     
+
+
+# API for add info of clients from the form
+class UserInfoGethring(APIView):
+    authentication_classes=[JWTAuthentication]
+
+    def get(self, request):
+        if request.user.id:
+            Traveller_Data = UserDetailGethringForm.objects.all().order_by('id').values()
+            return Response({'status':  status.HTTP_200_OK, "data": Traveller_Data})
+        else:
+            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': "Not found!"})
+            # for eachData in Traveller_Data:
+            #     print(eachData)
+    def post(self, request):
+        EmaployeeName=request.data.get("EmaployeeName")
+        TourNumber=request.data.get("TourNumber")
+        ClienFirstName=request.data.get("ClienFirstName")
+        ClienLastName=request.data.get("ClienLastName")
+        Nationalities=request.data.get("Nationalities")
+        DatesOfTravel=request.data.get("DatesOfTravel")
+        NumberOfTravellers=request.data.get("NumberOfTravellers")
+        AgesOfTravellers=request.data.get("AgesOfTravellers")
+        LengthToStay=request.data.get("LengthToStay")
+        BudgetSelect=request.data.get("BudgetSelect")
+        FlightArrivalTime=request.data.get("FlightArrivalTime")
+        FlightArrivalNumber=request.data.get("FlightArrivalNumber")
+        FlightDepartureTime=request.data.get("FlightDepartureTime")
+        FlightDepartureNumber=request.data.get("FlightDepartureNumber")
+        AccommodationSpecific=request.data.get("AccommodationSpecific")
+        MaltaExperience=request.data.get("MaltaExperience")
+        StartTime=request.data.get("StartTime")
+        LunchTime=request.data.get("LunchTime")
+        DinnerTime=request.data.get("DinnerTime")
+        IssuesNPhobias=request.data.get("IssuesNPhobias")
+        allValuesGet=[
+            EmaployeeName,TourNumber,ClienFirstName,ClienLastName,Nationalities,DatesOfTravel,NumberOfTravellers,AgesOfTravellers,LengthToStay,BudgetSelect,FlightArrivalTime,FlightArrivalNumber,FlightDepartureTime,FlightDepartureNumber,AccommodationSpecific,MaltaExperience,StartTime,LunchTime,DinnerTime,IssuesNPhobias
+        ]
+        errorArray=[
+            "employee_name","numberOfTour","client_firstName","client_lastName","nationality","datesOfTravel","numberOfTravellers","agesOfTravellers","lengthToStay","select_budget","flightArrivalTime","flightArrivalNumber","flightDepartureTime","flightDepartureNumber","accommodation_specific","malta_experience","start_time","lunch_time","dinner_time","issues_n_phobias"
+        ]
+        for index,  errorG in enumerate(allValuesGet):
+            if errorG=="" or errorG=="null":
+                return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': f"{errorArray[index]} is Required !"})
+
+        if request.user.id:
+            formsubmit = UserDetailGethringForm.objects.create(
+                user_id=request.user.id,
+                employee_name=EmaployeeName,
+                numberOfTour=TourNumber,
+                client_firstName=ClienFirstName,
+                client_lastName=ClienLastName,
+                nationality=Nationalities,
+                datesOfTravel=DatesOfTravel,
+                numberOfTravellers=NumberOfTravellers,
+                agesOfTravellers=AgesOfTravellers,
+                lengthToStay=LengthToStay,
+                select_budget=BudgetSelect,
+                flightArrivalTime=FlightArrivalTime,
+                flightArrivalNumber=FlightArrivalNumber,
+                flightDepartureTime=FlightDepartureTime,
+                flightDepartureNumber=FlightDepartureNumber,
+                accommodation_specific=AccommodationSpecific,
+                malta_experience=MaltaExperience,
+                start_time=StartTime,
+                lunch_time=LunchTime,
+                dinner_time=DinnerTime,
+                issues_n_phobias=IssuesNPhobias
+            )
+            
+            formsubmit.save()
+            
+            return Response({'status':  status.HTTP_201_CREATED, 'message': "Form Submitted Successfully !"})
+        else:
+            return Response({'error':  status.HTTP_400_BAD_REQUEST, 'message': "Form is not submitted, Please check your form and Try again."})
+        
+        
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
 

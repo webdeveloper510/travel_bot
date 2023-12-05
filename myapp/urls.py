@@ -25,6 +25,8 @@ urlpatterns = [
     path('deletefile/<int:id>/', CsvDeleteView.as_view(), name='deletefile'),
     path('topics/', TopicsView.as_view(), name='topics'),
     path('update-topics/<int:topic_id>/', UpdateTopicsView.as_view(), name='topics'),
+    path("user-info-form/", UserInfoGethring.as_view(),name="user-info-form"),
+
 
 ]
 if settings.DEBUG:

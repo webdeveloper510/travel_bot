@@ -141,9 +141,95 @@ class UserActivity(models.Model):
     answer=models.TextField(max_length=1000)
     topic=models.TextField(max_length=1000)
     topic_id=models.ForeignKey(Topics , on_delete=models.CASCADE)
-    
-# class QuestionAndAnswer(models.Model):
-#     topic=models.TextField(max_length=1000)
-#     question=models.TextField(max_length=1000)
-#     answer=models.TextField(max_length=1000)
+
+
+class UserDetailGethringForm(models.Model):
+    SelectBudget = [
+        ('Up to €5000','Up to €5000'),
+        ('Between €5000 - €10,000','Between €5000 - €10,000'),
+        ('Between €10,000 - €15,000','Between €10,000 - €15,000'),
+        ('Between €15,000 - €20,000','Between €15,000 - €20,000'),
+        ('€20,000 and over','€20,000 and over'),
+        ('Other','Other'),
+    ]
+
+    Accommodation_Specifics = [
+        ('Knights','Knights'),
+        ('Artisans','Artisans'),
+        ('Food & Wine','Food & Wine'),
+        ('Nobile Malta','Nobile Malta'),
+        ('Exclusive/Private/After hours','Exclusive/Private/After hours'),
+        ('Shopping','Shopping'),
+        ('Catholic','Catholic'),
+        ('Heritage or Culture/UNESCO','Heritage or Culture/UNESCO'),
+        ('Art','Art'),
+        ('Soft Adventure','Soft Adventure'),
+        ('Active','Active'),
+        ('Water Activity','Water Activity'),
+        ('WWII','WWII'),
+        ('Family','Family'),
+        ('Music','Music'),
+        ('Gozo','Gozo'),
+        ('Nature/Outdoors','Nature/Outdoors'),
+        ('Nightlife','Nightlife'),
+    ]
+    Malta_Experience = [
+        ('Not more than 4 Hours','Not more than 4 Hours'),
+        ('Not more than 6 Hours','Not more than 6 Hours'),
+        ('Not more than 8 Hours','Not more than 8 Hours'),
+    ]
+    Start_Time = [
+        ('08:30','08:30'),
+        ('09:00','09:00'),
+        ('09:30','09:30'),
+        ('10:00','10:00'),
+        ('Other','Other'),
+    ]
+    Lunch_Time = [
+        ('12:00','12:00'),
+        ('12:30','12:30'),
+        ('13:00','13:00'),
+        ('13:30','13:30'),
+        ('Other','Other'),
+
+    ]
+    Dinner_Time = [
+        ('19:00','19:00'),
+        ('19:30','19:30'),
+        ('20:00','20:00'),
+        ('20:30','20:30'),
+        ('Other','Other'),
+    ]
+
+    Issues_and_Phobias = [
+        ('Claustrophobic','Claustrophobic'),
+        ('Vegan','Vegan'),
+        ('Does not drink','Does not drink'),
+        ('Does not swim/like being on the water','Does not swim/like being on the water'),
+        ('No alcohol','No alcohol'),
+        ('Jewish','Jewish'),
+        ('Vegetarian','Vegetarian'),
+        ('Muslim','Muslim'),
+    ]
+    user=models.ForeignKey(User , on_delete=models.CASCADE)
+    employee_name=models.CharField(max_length=255)
+    numberOfTour=models.IntegerField()
+    client_firstName=models.CharField(max_length=255)
+    client_lastName=models.CharField(max_length=255)
+    nationality=models.CharField(max_length=255)
+    datesOfTravel=models.CharField(max_length=255)
+    numberOfTravellers=models.IntegerField()
+    agesOfTravellers=models.CharField(max_length=255)
+    lengthToStay=models.CharField(max_length=255)
+    select_budget=models.TextField(choices=SelectBudget)
+    flightArrivalTime=models.TextField(blank=True ,null=True)
+    flightArrivalNumber=models.CharField(max_length=255,blank=True,null=True)
+    flightDepartureTime=models.TextField(blank=True , null=True)
+    flightDepartureNumber=models.CharField(max_length=255,blank=True,null=True)
+    accommodation_specific=models.TextField(choices=Accommodation_Specifics)
+    malta_experience=models.TextField(choices=Malta_Experience)
+    start_time=models.TextField(choices=Start_Time)
+    lunch_time=models.TextField(choices=Lunch_Time)
+    dinner_time=models.TextField(choices=Dinner_Time)
+    issues_n_phobias=models.TextField(choices=Issues_and_Phobias)
 

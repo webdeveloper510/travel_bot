@@ -436,7 +436,7 @@ class Prediction(APIView):
             clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
             split_user_query=clean_usr_query.split(" ")                 # split user query by space
         else: 
-            return Response({"Answer":"Data Not Found" }) 
+            return Response({"Answer":"Data Not Found" },status=status.HTTP_400_BAD_REQUEST) 
         
         if not Topics.objects.filter(user_id=request.user.id).exists():
             data = Topics.objects.create(user_id=request.user.id, name=usr_query)
@@ -546,8 +546,9 @@ class Prediction(APIView):
                         values = res_dict.get(Header)
                         if new_header in euro_keys and values is not None:
                             values = f'€{values}'
-                        current_dict["Vendor"]=res_dict[vendor_value] 
-                        current_dict[new_header] = values
+                        if values:
+                            current_dict["Vendor"]=res_dict[vendor_value] 
+                            current_dict[new_header] = values
                     result_list.append(current_dict.copy())
                     if res_dict[vendor_value] not in  VandorNameList:
                         VandorNameList.append(res_dict[vendor_value])
@@ -568,7 +569,8 @@ class Prediction(APIView):
                             new_header = replacement_mapping.get(key, key)
                             if new_header in euro_keys and value is not None:
                                 value = f'€{value}'  # Corrected this line
-                            updated_data[new_header] = value
+                            if value:
+                                updated_data[new_header] = value
                             
                     if updated_data[vendor_value] not in VandorNameList:
                         VandorNameList.append(updated_data[vendor_value])
@@ -577,34 +579,39 @@ class Prediction(APIView):
                     
             # if Vendor list empty then run this code.
             if not VandorNameList:
+                print("vendor send from frontend")
                 new_dict = {}
                 itenary_answer = []  
-                vendor_text="Vendor"
+                vendor_text="Vendor"    
                 if vendor_get:
                     vendor_select = ast.literal_eval(vendor_get)
                     for vendor in vendor_select:
-                        current_dict = {}
-                        for head_er in headerToValues:
-                            SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
-                            del SelectedVendorData['id']
-                            for original_key, value in SelectedVendorData.items():
-                                new_key = original_key.replace("_", " ")
-                                new_dict[new_key] = value
-                            if new_dict[vendor_text] not in  VandorNameList:
-                                VandorNameList.append(new_dict[vendor_text])
-                        for idx3,Header in enumerate(headerToValues):
-                            if Header.lower() in tag_list:
-                                new_header = "Associated Places"
-                                new_header = replacement_mapping.get(Header, Header)
-                            else:
-                                new_header = Header
-                                new_header = replacement_mapping.get(Header, Header)
-                            values = new_dict.get(Header)
-                            if new_header in euro_keys and values is not None:
-                                values = f'€{values}'
-                            current_dict[new_header] = values
-                        itenary_answer.append(self.generate_response(current_dict,idx3))
-                
+                        current_dict1 = {}
+                        SelectedVendorData = TravelBotData.objects.filter(Vendor=vendor).values()[0]
+                        del SelectedVendorData['id']
+                        for original_key, value in SelectedVendorData.items():
+                            new_key = original_key.replace("_", " ")
+                            new_dict[new_key] = value
+                        if new_dict[vendor_text] not in  VandorNameList:
+                            VandorNameList.append(new_dict[vendor_text])
+                            
+                        if headerToValues:
+                            for idx3,Header in enumerate(headerToValues):
+                                if Header.lower() in tag_list:
+                                    new_header = "Associated Places"
+                                    new_header = replacement_mapping.get(Header, Header)
+                                else:
+                                    new_header = Header
+                                    new_header = replacement_mapping.get(Header, Header)
+                                values = new_dict.get(Header)
+                                if new_header in euro_keys and values is not None:
+                                    values = f'€{values}'
+                                if values !="€nan":
+                                    current_dict1['Vendor'] = new_dict[vendor_text]
+                                    current_dict1[new_header] = values
+                            itenary_answer.append(self.generate_response(current_dict1,idx3))
+                        else:
+                            return Response({"Answer":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
             else:
                 itenary_answer
                 

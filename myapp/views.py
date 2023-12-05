@@ -254,8 +254,6 @@ class Prediction(APIView):
         
         # filter dict based on true value
         filtered_dict = {key: value for key, value in result_list.items() if value != 0}
-        # print("result_list",filtered_dict)
-        
         # Sort dictionary based on the 
         sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[1], reverse=True))
         
@@ -404,6 +402,7 @@ class Prediction(APIView):
         response = response_template.render(data=data, idx=idx,start=start)
         return response
     
+    # make a custom format by using this function
     def get_html_tag(self,ans):
         details = []
         soup = BeautifulSoup(ans, 'html.parser')
@@ -416,25 +415,28 @@ class Prediction(APIView):
         itenary_answer = "{}\n{}\n\n".format(title_element, '\n'.join(details)) if title_element else '\n'.join(details) + '\n\n'
         return itenary_answer
     
+    
     def post(self , request, format=None):
         answer_found=False
         unique_results = set()         # list of unique header name
         actual_list = []              # use for dictionary list
         dictionary_list = []           ### Store per rows with its header and value in list [{}]
         AnswerImputList=[]
-        VandorNameList = []
+        VandorNameList = []    
         label = ''
         
-        final_itenary_ans=None
         itenary_answer=None
         #  Get Data From User "=========================================="
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
         vendor_get=request.data.get("vendor_name")
-
+       
         # Preprocess User Query =========================================
-        clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
-        split_user_query=clean_usr_query.split(" ")                 # split user query by space
+        if usr_query:
+            clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
+            split_user_query=clean_usr_query.split(" ")                 # split user query by space
+        else: 
+            return Response({"Answer":"Data Not Found" }) 
         
         if not Topics.objects.filter(user_id=request.user.id).exists():
             data = Topics.objects.create(user_id=request.user.id, name=usr_query)
@@ -452,9 +454,10 @@ class Prediction(APIView):
             itenary_answer=value_found
             answer_found = True 
             
-            
         # Make Response From Database based on user query   =========================================    
         else:
+            
+            # Dictionary for  change keys name
             replacement_mapping = {
             'net Cost by Experience': 'Cost of Experience',
             'net Cost Per Person Adult': 'Cost Per Person',
@@ -463,12 +466,18 @@ class Prediction(APIView):
             'net Cost by Hour': 'Hourly Cost',
             'Is The Guide Included in the cost': 'Guide Included cost'
             }
+            
+            # list of keys which is use to adding euro sign
             euro_keys = ['Cost of Experience', 'Cost Per Person Child/Senior', 'Cost Per Person','Maximum Cost']
+            
+            # list of tag cilumns which is replace by "Associated place"
             tag_list=["tag 1","tag 2","tag 3","tag 4","tag 5","tag 6"]
             
             answer_found = False 
             SelectedVendorData = None
             itenary_answer = None 
+            
+            # Get data from database
             service = TravelBotData.objects.all().order_by('id')
             for i in service:
                 actual_dict = {}
@@ -519,6 +528,8 @@ class Prediction(APIView):
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
            
             # Make a Code for get result in html tags =================================================================
+            
+            
             if filtered_list and headerToValues:
                 result_list = []
                 vendor_value="Vendor"
@@ -539,13 +550,13 @@ class Prediction(APIView):
                     if res_dict[vendor_value] not in  VandorNameList:
                         VandorNameList.append(res_dict[vendor_value])
                 # Accumulate responses for each data in result_list
-                itenary_answer = [self.generate_response(data,idx) for idx,data in enumerate(result_list)]
+                itenary_answer = [self.generate_response(data,index1) for index1,data in enumerate(result_list)]
 
             # Condition for when user ask about values of data not column.
             elif len(filtered_list) > 0 and len(headerToValues) == 0:
                 itenary_answer = []
                 vendor_value="Vendor"
-                for idx,data in enumerate(filtered_list):
+                for idx2,data in enumerate(filtered_list):
                     updated_data = {}
                     for key, value in data.items():
                         if key.lower() in tag_list:
@@ -559,7 +570,7 @@ class Prediction(APIView):
                     if updated_data[vendor_value] not in VandorNameList:
                         VandorNameList.append(updated_data[vendor_value])
                         
-                    itenary_answer.append(self.generate_response(updated_data, idx))
+                    itenary_answer.append(self.generate_response(updated_data, idx2))
                     
             # if Vendor list empty then run this code.
             if not VandorNameList:
@@ -578,7 +589,7 @@ class Prediction(APIView):
                                 new_dict[new_key] = value
                             if new_dict[vendor_text] not in  VandorNameList:
                                 VandorNameList.append(new_dict[vendor_text])
-                        for idx,Header in enumerate(headerToValues):
+                        for idx3,Header in enumerate(headerToValues):
                             if Header.lower() in tag_list:
                                 new_header = "Associated Places"
                                 new_header = replacement_mapping.get(Header, Header)
@@ -589,18 +600,21 @@ class Prediction(APIView):
                             if new_header in euro_keys and values is not None:
                                 values = f'€{values}'
                             current_dict[new_header] = values
-                        itenary_answer.append(self.generate_response(current_dict,idx))
+                        itenary_answer.append(self.generate_response(current_dict,idx3))
                 
             else:
                 itenary_answer
+                
+                # Use code for Google maps
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
-                    itenary_answer1= [self.generate_response(d_dict, idx) for idx, d_dict in enumerate(map_rslt_list)]
-                    print("itenary_answer1=======",itenary_answer1)
+                    itenary_answer1= [self.generate_response(d_dict, idx4) for idx4, d_dict in enumerate(map_rslt_list)]
                     itenary_answer=itenary_answer+itenary_answer1
+                
                 else:
                     itenary_answer
-                
+                    
+                    
             for ans in itenary_answer:
                 extractor.load_document(input=ans, language='en')
                 extractor.candidate_selection()
@@ -610,8 +624,9 @@ class Prediction(APIView):
                     label = keyphrases[0][0]
                 answer_found=True
                 
+            # Make a formatted data by usig this function
             itenary_answer=[self.get_html_tag(ans) for ans in itenary_answer]
-            print("itenary_answer========>>",final_itenary_ans)
+            
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
@@ -621,6 +636,7 @@ class Prediction(APIView):
                 update_Vendor = Topics.objects.filter(id=topic_id).update(vendor_name=VandorNameList)   
             return Response({"Answer":itenary_answer,"time":formatted_time, "id":conversation.id,'label':conversation.topic,"vendor_name":VandorNameList},status=status.HTTP_200_OK)
         else:
+            print('answer not found')
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer="Data not found !! I am in learning Stage.", topic=label, topic_id_id=topic_id)
             return Response({"Answer":"Data not found !! I am in learning Stage."},status=status.HTTP_400_BAD_REQUEST)
                 

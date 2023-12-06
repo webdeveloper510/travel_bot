@@ -213,8 +213,6 @@ details_dict={
 }
 
 
-
-
 class Prediction(APIView):
     authentication_classes=[JWTAuthentication]
     
@@ -248,8 +246,6 @@ class Prediction(APIView):
         result_list = {}
         index = 0
         countWords = 0 
-        for index1,element in enumerate(dictionary_list):
-            value =  element.get('Vendor')
         for d in dictionary_list:
             for word in inputlist:
                 if header_vendor_text in d and self.contains_word(d[header_vendor_text].lower().replace('hour', '').strip(),word.lower()):
@@ -261,12 +257,11 @@ class Prediction(APIView):
         # filter dict based on true value
         filtered_dict = {key: value for key, value in result_list.items() if value != 0}
         # Sort dictionary based on the 
-        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[1], reverse=True))
-        
+        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[0], reverse=True))
         sorted_indices = list(sorted_dict.keys())
         filtered_dictionary_list = [dictionary_list[int(index)] for index in sorted_indices]
         return filtered_dictionary_list
-    
+   
     # Function for getting value from tag and location column
     def find_tags_values(self, dictionary_list, input_list):
         print("input_list=======================>>>",input_list)
@@ -292,6 +287,7 @@ class Prediction(APIView):
                     elif any(len(matches) >=2 for matches in current_matches):
                         matches_row_second_condition.append(data)
                         break
+    
         if matches_row_first_condition:
             return matches_row_first_condition
         elif matches_row_second_condition:
@@ -336,15 +332,22 @@ class Prediction(APIView):
     def Calcuate_distance_time(self,origin_direction ,destination,mode):
         gmaps = googlemaps.Client(key=GOOGLE_MAPS_KEY)
         directions_result = gmaps.directions(origin_direction, destination, mode)
-        distance=directions_result[0]['legs'][0]['distance']['text']
-        duration=directions_result[0]['legs'][0]['duration']['text']
-        # results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
-        response_dict={
-            "Mode":f"Mode :{mode.title()}",
-            "Distance":f"Distance between {origin_direction} to {destination} is {distance}",
-            "Duration":f" Time Duration is {duration}" 
-        }
-        return response_dict
+        if directions_result:
+            distance=directions_result[0]['legs'][0]['distance']['text']
+            duration=directions_result[0]['legs'][0]['duration']['text']
+            # results[mode] =f"{origin_direction} to {destination} is {distance} and its time is {duration}"
+            response_dict={
+                "Mode":f"Mode :{mode.title()}",
+                "Distance":f"Distance between {origin_direction} to {destination} is {distance}",
+                "Duration":f" Time Duration is {duration}" 
+            }
+            return response_dict
+        else:
+            response_dict={
+                "Mode":f"Mode :{mode.title()}",
+                "Not Found": f"There is no such route for {mode.title()} for these places."
+            }
+            return response_dict
     
     # function for get the location distance and time between locations
     def find_distance_time_locations(self, dictionary_list, split_user_query):
@@ -352,18 +355,18 @@ class Prediction(APIView):
         modes = ['driving', 'walking', 'transit']  
         loc_values = []
         mode_results = []
-
         for data_dict in dictionary_list:
             values = data_dict.get(location_tag)
             if values is not None and values.lower() in split_user_query:
                 if values not in loc_values:
                     loc_values.append(values)
+        
         if len(loc_values) == 2:
             print("If condition is running")
             for mode in modes:
                 distance_time = self.Calcuate_distance_time(loc_values[0], loc_values[1], mode)
                 mode_results.append(distance_time)
-            
+            print("mode_results=========>>",mode_results)
         elif len(loc_values) > 2:
             print("Elif ccondition is running")
             for i in range(len(loc_values) - 1):
@@ -371,6 +374,8 @@ class Prediction(APIView):
                     values = f"{loc_values[i]} {loc_values[i + 1]}".split(" ")
                     distance_time = self.Calcuate_distance_time(values[0], values[1], mode)
                     mode_results.append(distance_time)
+        print("mode_results----------->>>",mode_results)
+
         return mode_results
 
     
@@ -525,8 +530,7 @@ class Prediction(APIView):
             if tagsValues:
                 # print("tagsValues========>>>",tagsValues)
                 AnswerImputList.extend(tagsValues)
-                
-                
+              
             # Find the result pf google maps
             Google_intent_find=self.findMapIntent(split_user_query)
            
@@ -536,8 +540,6 @@ class Prediction(APIView):
             filtered_list = [item for item in AnswerImputList if isinstance(item, dict)]
            
             # Make a Code for get result in html tags =================================================================
-            print("headerToValues============>>>",headerToValues)
-            print()
             if filtered_list and headerToValues:
                 print("Both list True")
                 result_list = []
@@ -628,8 +630,12 @@ class Prediction(APIView):
                 # Use code for Google maps
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
-                    itenary_answer1= [self.generate_response(d_dict, idx4) for idx4, d_dict in enumerate(map_rslt_list)]
-                    itenary_answer=itenary_answer+itenary_answer1
+                    if map_rslt_list:
+                        print("map_rslt_list=================>>>",map_rslt_list)
+                        itenary_answer1= [self.generate_response(d_dict, idx4) for idx4, d_dict in enumerate(map_rslt_list)]
+                        itenary_answer=itenary_answer+itenary_answer1
+                    else:
+                        return itenary_answer
                 
                 else:
                     itenary_answer

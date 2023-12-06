@@ -341,13 +341,14 @@ class Prediction(APIView):
                 "Distance":f"Distance between {origin_direction} to {destination} is {distance}",
                 "Duration":f" Time Duration is {duration}" 
             }
-            return response_dict
+            # return response_dict
         else:
             response_dict={
                 "Mode":f"Mode :{mode.title()}",
                 "Not Found": f"There is no such route for {mode.title()} for these places."
             }
-            return response_dict
+            
+        return response_dict
     
     # function for get the location distance and time between locations
     def find_distance_time_locations(self, dictionary_list, split_user_query):
@@ -366,7 +367,7 @@ class Prediction(APIView):
             for mode in modes:
                 distance_time = self.Calcuate_distance_time(loc_values[0], loc_values[1], mode)
                 mode_results.append(distance_time)
-            print("mode_results=========>>",mode_results)
+            print("1st=====>>",mode_results)
         elif len(loc_values) > 2:
             print("Elif ccondition is running")
             for i in range(len(loc_values) - 1):
@@ -586,7 +587,7 @@ class Prediction(APIView):
                             
                     if updated_data[vendor_value] not in VandorNameList:
                         VandorNameList.append(updated_data[vendor_value])
-                        
+                    print("itenary_answer================>>>",itenary_answer) 
                     itenary_answer.append(self.generate_response(updated_data, idx2))
                     
             # if Vendor list empty then run this code.

@@ -677,7 +677,7 @@ class UserInfoGethring(APIView):
             Traveller_Data = UserDetailGethringForm.objects.all().order_by('id').values()
             return Response({"data": Traveller_Data} ,status= status.HTTP_200_OK)
         else:
-            return Response({'message': "Not found!"},status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error":{'message': "Not found!"}},status=status.HTTP_400_BAD_REQUEST)
     def post(self, request):
         EmaployeeName=request.data.get("EmaployeeName")
         TourNumber=request.data.get("TourNumber")
@@ -707,9 +707,9 @@ class UserInfoGethring(APIView):
         ]
         for index,  errorG in enumerate(allValuesGet):
             if errorG=="" or errorG=="null":
-                return Response({'Error':  status.HTTP_400_BAD_REQUEST, 'message': f"{errorArray[index]} is Required !"})
+                return Response({'error':  {'message': f"{errorArray[index]} is Required !"}},status=status.HTTP_400_BAD_REQUEST)
         if UserDetailGethringForm.objects.filter(numberOfTour=TourNumber).exists():
-            return Response({"Error":"This Tour Number is already exist"},status=status.HTTP_406_NOT_ACCEPTABLE)
+            return Response({"error":{"message":"This Tour Number is already exist"}},status=status.HTTP_406_NOT_ACCEPTABLE)
         
         elif request.user.id: 
                 formsubmit = UserDetailGethringForm.objects.create(
@@ -738,9 +738,9 @@ class UserInfoGethring(APIView):
                 
                 formsubmit.save()
                 
-                return Response({'status':  status.HTTP_201_CREATED, 'message': "Form Submitted Successfully !"})
+                return Response({'status':{ 'message': "Form Submitted Successfully !"}},status=status.HTTP_201_CREATED,)
         else:
-            return Response({'error': status.HTTP_400_BAD_REQUEST, 'message': "User Not Found"})
+            return Response({'error': { 'message': "User Not Found"}},status=status.HTTP_400_BAD_REQUEST,)
         
         
 class ChatDetailsByID(APIView):

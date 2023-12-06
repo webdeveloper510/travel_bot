@@ -675,9 +675,9 @@ class UserInfoGethring(APIView):
     def get(self, request):
         if request.user.id:
             Traveller_Data = UserDetailGethringForm.objects.all().order_by('id').values()
-            return Response({'status':  status.HTTP_200_OK, "data": Traveller_Data})
+            return Response({"data": Traveller_Data} ,status= status.HTTP_200_OK)
         else:
-            return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': "Not found!"})
+            return Response({'message': "Not found!"},status=status.HTTP_400_BAD_REQUEST)
     def post(self, request):
         EmaployeeName=request.data.get("EmaployeeName")
         TourNumber=request.data.get("TourNumber")

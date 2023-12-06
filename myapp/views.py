@@ -647,12 +647,12 @@ class Prediction(APIView):
             # Make a formatted data by usig this function
             itenary_answer=[self.get_html_tag(ans) for ans in itenary_answer]
             
-        r = requests.post("https://api.deepai.org/api/text-generator",
-                          {"text":f"Provide  answer from provide context and data in structured form and not print more text only give data values ,{itenary_answer}"}
-                          ,headers={'api-key':DEEP_API_KEY})
-        genratedText = r.json()
-        itenary=genratedText['output']
-        print("itenary_answer=====>>",itenary)
+        # r = requests.post("https://api.deepai.org/api/text-generator",
+        #                   {"text":f"Provide  answer from provide context and data in structured form and not print more text only give data values ,{itenary_answer}"}
+        #                   ,headers={'api-key':DEEP_API_KEY})
+        # genratedText = r.json()
+        # itenary=genratedText['output']
+        # print("itenary_answer=====>>",itenary)
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date

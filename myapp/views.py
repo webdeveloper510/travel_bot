@@ -438,11 +438,11 @@ class Prediction(APIView):
         usr_query=request.data.get("query")                         # input from postman
         topic_id=request.data.get("topic_id")
         vendor_get=request.data.get("vendor_name")
-
+            
         # Preprocess User Query =========================================
         if usr_query:
             correct_user_input=spell(usr_query)
-            clean_usr_query=self.clean_text(correct_user_input)                  # clean and preprocess user query
+            clean_usr_query=self.clean_text(usr_query)                  # clean and preprocess user query
             split_user_query=clean_usr_query.split(" ")                 # split user query by space
         else: 
             return Response({"Answer":"Data Not Found" },status=status.HTTP_400_BAD_REQUEST) 
@@ -647,6 +647,12 @@ class Prediction(APIView):
             # Make a formatted data by usig this function
             itenary_answer=[self.get_html_tag(ans) for ans in itenary_answer]
             
+        r = requests.post("https://api.deepai.org/api/text-generator",
+                          {"text":f"Provide  answer from provide context and data in structured form and not print more text only give data values ,{itenary_answer}"}
+                          ,headers={'api-key':DEEP_API_KEY})
+        genratedText = r.json()
+        itenary=genratedText['output']
+        print("itenary_answer=====>>",itenary)
         if answer_found:
             conversation=UserActivity.objects.create(user_id=request.user.id,questions=usr_query,answer=itenary_answer, topic=label, topic_id_id=topic_id)
             date_time = conversation.date
@@ -672,8 +678,6 @@ class UserInfoGethring(APIView):
             return Response({'status':  status.HTTP_200_OK, "data": Traveller_Data})
         else:
             return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': "Not found!"})
-            # for eachData in Traveller_Data:
-            #     print(eachData)
     def post(self, request):
         EmaployeeName=request.data.get("EmaployeeName")
         TourNumber=request.data.get("TourNumber")
@@ -703,38 +707,40 @@ class UserInfoGethring(APIView):
         ]
         for index,  errorG in enumerate(allValuesGet):
             if errorG=="" or errorG=="null":
-                return Response({'status':  status.HTTP_400_BAD_REQUEST, 'message': f"{errorArray[index]} is Required !"})
-
-        if request.user.id:
-            formsubmit = UserDetailGethringForm.objects.create(
-                user_id=request.user.id,
-                employee_name=EmaployeeName,
-                numberOfTour=TourNumber,
-                client_firstName=ClienFirstName,
-                client_lastName=ClienLastName,
-                nationality=Nationalities,
-                datesOfTravel=DatesOfTravel,
-                numberOfTravellers=NumberOfTravellers,
-                agesOfTravellers=AgesOfTravellers,
-                lengthToStay=LengthToStay,
-                select_budget=BudgetSelect,
-                flightArrivalTime=FlightArrivalTime,
-                flightArrivalNumber=FlightArrivalNumber,
-                flightDepartureTime=FlightDepartureTime,
-                flightDepartureNumber=FlightDepartureNumber,
-                accommodation_specific=AccommodationSpecific,
-                malta_experience=MaltaExperience,
-                start_time=StartTime,
-                lunch_time=LunchTime,
-                dinner_time=DinnerTime,
-                issues_n_phobias=IssuesNPhobias
-            )
-            
-            formsubmit.save()
-            
-            return Response({'status':  status.HTTP_201_CREATED, 'message': "Form Submitted Successfully !"})
+                return Response({'Error':  status.HTTP_400_BAD_REQUEST, 'message': f"{errorArray[index]} is Required !"})
+        if UserDetailGethringForm.objects.filter(numberOfTour=TourNumber).exists():
+            return Response({"Error":"This Tour Number is already exist"},status=status.HTTP_406_NOT_ACCEPTABLE)
+        
+        elif request.user.id: 
+                formsubmit = UserDetailGethringForm.objects.create(
+                    user_id=request.user.id,
+                    employee_name=EmaployeeName,
+                    numberOfTour=TourNumber,
+                    client_firstName=ClienFirstName,
+                    client_lastName=ClienLastName,
+                    nationality=Nationalities,
+                    datesOfTravel=DatesOfTravel,
+                    numberOfTravellers=NumberOfTravellers,
+                    agesOfTravellers=AgesOfTravellers,
+                    lengthToStay=LengthToStay,
+                    select_budget=BudgetSelect,
+                    flightArrivalTime=FlightArrivalTime,
+                    flightArrivalNumber=FlightArrivalNumber,
+                    flightDepartureTime=FlightDepartureTime,
+                    flightDepartureNumber=FlightDepartureNumber,
+                    accommodation_specific=AccommodationSpecific,
+                    malta_experience=MaltaExperience,
+                    start_time=StartTime,
+                    lunch_time=LunchTime,
+                    dinner_time=DinnerTime,
+                    issues_n_phobias=IssuesNPhobias
+                )
+                
+                formsubmit.save()
+                
+                return Response({'status':  status.HTTP_201_CREATED, 'message': "Form Submitted Successfully !"})
         else:
-            return Response({'error':  status.HTTP_400_BAD_REQUEST, 'message': "Form is not submitted, Please check your form and Try again."})
+            return Response({'error': status.HTTP_400_BAD_REQUEST, 'message': "User Not Found"})
         
         
 class ChatDetailsByID(APIView):

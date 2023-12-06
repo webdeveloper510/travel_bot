@@ -213,7 +213,7 @@ class UserDetailGethringForm(models.Model):
     ]
     user=models.ForeignKey(User , on_delete=models.CASCADE)
     employee_name=models.CharField(max_length=255)
-    numberOfTour=models.IntegerField()
+    numberOfTour=models.IntegerField(unique=True)
     client_firstName=models.CharField(max_length=255)
     client_lastName=models.CharField(max_length=255)
     nationality=models.CharField(max_length=255)

@@ -26,6 +26,8 @@ urlpatterns = [
     path('topics/', TopicsView.as_view(), name='topics'),
     path('update-topics/<int:topic_id>/', UpdateTopicsView.as_view(), name='topics'),
     path("user-info-form/", UserInfoGethring.as_view(),name="user-info-form"),
+    path("itinerary-frame/", FRameItinerary.as_view(),name="itinerary-frame"),
+
 
 
 ]

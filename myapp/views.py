@@ -21,7 +21,7 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
 from fuzzywuzzy import fuzz
 from django.utils import timezone
-from datetime import datetime
+from datetime import datetime,timedelta
 import re
 import pandas as pd
 import numpy as np
@@ -54,6 +54,7 @@ import requests
 from TravelBot.settings import DEEP_API_KEY
 from jinja2 import Template
 import spacy
+from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
 # url="http://127.0.0.1:8000/static/media/"
@@ -257,7 +258,7 @@ class Prediction(APIView):
         # filter dict based on true value
         filtered_dict = {key: value for key, value in result_list.items() if value != 0}
         # Sort dictionary based on the 
-        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[0], reverse=True))
+        sorted_dict = dict(sorted(filtered_dict.items(), key=lambda item: item[1], reverse=True))
         sorted_indices = list(sorted_dict.keys())
         filtered_dictionary_list = [dictionary_list[int(index)] for index in sorted_indices]
         return filtered_dictionary_list
@@ -715,6 +716,7 @@ class UserInfoGethring(APIView):
         for index,  errorG in enumerate(allValuesGet):
             if errorG=="" or errorG=="null":
                 return Response({'error':  {'message': f"{errorArray[index]} is Required !"}},status=status.HTTP_400_BAD_REQUEST)
+        
         if UserDetailGethringForm.objects.filter(numberOfTour=TourNumber).exists():
             return Response({"error":{"message":"This Tour Number is already exist"}},status=status.HTTP_406_NOT_ACCEPTABLE)
         
@@ -744,12 +746,603 @@ class UserInfoGethring(APIView):
                 )
                 
                 formsubmit.save()
-                
-                return Response({'status':{ 'message': "Form Submitted Successfully !"}},status=status.HTTP_201_CREATED,)
+                return Response({'status':{'message': "Form Submitted Successfully !"},"id":formsubmit.id},status=status.HTTP_201_CREATED,)
         else:
             return Response({'error': { 'message': "User Not Found"}},status=status.HTTP_400_BAD_REQUEST,)
+      
+# API for make itinerary answer.  
+
+class FRameItinerary(APIView):
+    
+    # 1 . Function For String Match
+    def contains_word(self, s, w):
+        return (' ' + w + ' ') in (' ' + s + ' ')
+    
+   
+   
+   # 2. Function for get all values from travel data table
+    def GetCsvDataFRomDatabase(self,):
+        CsvData=[]
+        travel_data=TravelBotData.objects.all().values().order_by("id")
+        for alldata in travel_data:
+            alldata.pop("id", None)                                             # Remove the 'id' key if it exists
+            modified_data = {}                                                   # Create a new dictionary for modified data
+            count=0
+            for key, value in alldata.items():
+                if value and  value !="nan":
+                    modified_key = key.replace("_", " ")
+                    modified_data[modified_key] = value
+            CsvData.append(modified_data)
+        return CsvData
+    
+    
+    # 3 . Function to Get Dates of Travel on itineray heading (format =  Tue, Dec 05 - Fri, Dec 08 )
+    def DatesOfTravel(self,date_string):
+        dates = date_string.split(" To ")
+        formatted_dates = [datetime.strptime(date, "%a, %b %d, %Y").strftime("%a, %b %d") for date in dates]
+        result_string = f"{formatted_dates[0]} - {formatted_dates[1]}"
+        return result_string
+    
+    
+    # 4 .function for get total cost for agent and client
+    def netANDgross_Value(self , matched_rows,numberOfTravellers):
+        Net_value= ['net Cost by Experience','net Cost Per Person Adult','Maximum Pax per cost','net Cost Per Person Child Senior','net Cost by Hour']
+        net_values = {}
+        gross_value = {}
+        for rows_dict in matched_rows:
+            vendor = rows_dict.get("Vendor")
+            for key, value in rows_dict.items():
+                if key in Net_value and value and value != "nan":
+                    try:
+                        numeric_value = float(value)
+                        if vendor not in net_values:
+                            net_values[vendor] = 0.0
+                        net_values[vendor] += numeric_value
+                        
+                        if vendor not in gross_value:
+                            gross_value[vendor] = 0.0
+                        gross_value[vendor] += numeric_value * 1.45
+                        
+                    except ValueError:
+                        print(f"Warning: Non-numeric value '{value}' encountered for key '{key}'")
+        net_values_for_agent =sum(net_values.values())* numberOfTravellers
+        gross_values_for_agent =sum(gross_value.values())* numberOfTravellers
+        return [net_values_for_agent , gross_values_for_agent]
+    
+    #  5. Function for calculate total days
+    def GetDaysFromDate(self, date_string):
+        start_date_str, end_date_str = date_string.split(" To ")
+
+        start_date_obj = datetime.strptime(start_date_str, "%a, %b %d, %Y")
+        end_date_obj = datetime.strptime(end_date_str, "%a, %b %d, %Y")
+
+        # if end date less than start date
+        if end_date_obj < start_date_obj:
+            start_date_obj, end_date_obj = end_date_obj, start_date_obj
+
+        day_difference = (end_date_obj - start_date_obj).days
+
+        current_date = start_date_obj
+        all_days = []
+
+        while current_date <= end_date_obj:
+            all_days.append(current_date.strftime("%a, %b %d"))
+            current_date += timedelta(days=1)
+        response_dict = {
+            "Start Day":start_date_obj.strftime("%A"),
+            "End Day": end_date_obj.strftime("%A"),
+            "All Days": all_days,
+            "Total Days": day_difference,
+            # "Month":start_date_obj.strftime("%B")
+        }
+        return response_dict
+    
+    # 6 . Google MAp API    (Use in "VendorToVendorTime" function)
+    def GetTimeMapAPI(self, origin_direction, destination, mode):
+        gmaps = googlemaps.Client(key=GOOGLE_MAPS_KEY)
+        gps_list = []
+        directions_result = gmaps.directions(origin_direction, destination, mode)
+        if directions_result:
+            distance = directions_result[0]['legs'][0]['distance']['text']
+            duration = directions_result[0]['legs'][0]['duration']['text']
+          
+            gps_list.append((origin_direction, destination,duration, distance))
+        return gps_list
+    
+    # 7. Get Vendor to Vendor Distance   ( Use in post fiunction) 
+    def VendorToVendorTime(self, keys_list, Locationslist):
+        LocationDistance = []
+        error_list=[]
+        if len(keys_list) < 2:
+            return Response({"error": "Insufficient number of keys"}, status=status.HTTP_400_BAD_REQUEST)
+        mapsInputkeys = [Vname.replace(" ", "-").replace("to", "") if Vname else "" for Vname, _ in keys_list]
+        for i in range(len(mapsInputkeys) - 1):
+            origin = Locationslist[i]
+            destination = Locationslist[i + 1]
+            key = mapsInputkeys[i]
+            formatted_string = f"{key}({origin}) to {mapsInputkeys[i + 1]}({destination})"
+            values = formatted_string.split("to")
+            try:
+                distance_time = self.GetTimeMapAPI(values[0], values[1], mode="driving")
+                LocationDistance.append(distance_time)
+            except googlemaps.exceptions.ApiError as api_error:
+                error_list.append({"error": str(api_error), "locations": (values[0], values[1])})
+        return LocationDistance
+    
+    # 8 . Main Function for Create Dictionary to generate Dictionary    (Use In 'Post' Function)
+    def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience):
+        StartTourKey = False
+        Itineary_dict = {}
+        Itineary_dict["Lead Client Name"]=lead_client_name
+        Itineary_dict["Dates of Travel"]=datesOfTravel
+        Itineary_dict["Tour Number"]=numberOfTour
+        Itineary_dict["NET Value of trip to the Agent"]=net_tripAgent
+        Itineary_dict["Gross Value of the trip to the Client"]=Gross_tripClient
+        Itineary_dict["Days"]=AllTripDays
+        Itineary_dict["Flight Arrival"]=[AllTripDays[0],f"{flightArrivalTime} - Arrival at Malta International Airport on {flightArrivalNumber} and privately transfer to the hotel"]
+        
+        arrival_datetime = datetime.strptime(flightArrivalTime, "%H:%M")
+        # Check if the arrival time is before 12:00 PM
+        if arrival_datetime.time() < datetime.strptime("12:00", "%H:%M").time():
+            StartTourKey = True
+        else:
+            StartTourKey = False
+        
+        Itineary_dict["Tour Description"]=[]
+            
+        if StartTourKey:
+                # When Visit time less than 12 vje
+            for days in AllTripDays:
+                Itineary_dict["Tour Description"].append({days:[]})
+        else: 
+            # When Visit time above 12 vje
+            del AllTripDays[0]
+            for days in AllTripDays:
+                Itineary_dict["Tour Description"].append({days:[]})
+                
+                
+        tourDescriptionvalues=Itineary_dict.get('Tour Description')
+        totalDays=len(tourDescriptionvalues)
+        
+        tour_start_datetime = datetime.strptime(TourStart_time, "%H:%M")
+        startTime = tour_start_datetime.strftime("%H:%M:%S")
+        PerDayActivity=self.DivideDataPerDAyTour(perdayresultItinerary,TourTotalDays)      # divide list per days itinerary list
+        current_value=startTime
+      
+        numberofHours = int(re.search(r'\d+', malta_experience).group())
+        lunchPrefred=datetime.strptime(lunch_time,"%H:%M")
+        lunchPrefredObject=lunchPrefred.strftime("%H:%M:%S")
+        SortedVendorList=[]
+        SortedDepartList=[]
+        locations=[]
+        for subNewLis in PerDayActivity:
+            # Assuming starttime and cumulative_time are initialized appropriately for each set of activities
+            DepartArrivalList=self.MakevendorDict(subNewLis, startTime)
+            lunchEntry=self.LunchEntry(lunch_time,subNewLis , DepartArrivalList)
+
+        #     for vendor_key , vendor_value in list(VendorVsitTimeDict.items()):
+        #         new_vendor_time_dict = {}         
+        #         for depart_key , depart_value in list(LocationDepartDict.items()):        
+        #             new_depart_time_dict = {}         
+                          
+        #             for vendorTimeDict in vendor_value:
+        #                 for timestr , Vendors in list(vendorTimeDict.items()):   
+        #                     current_time = datetime.strptime(timestr, '%H:%M:%S')
+        #                     tour_end_time = datetime.strptime(current_value, '%H:%M:%S') + timedelta(hours=numberofHours)
+                            
+        #                     if current_time <= tour_end_time:
+        #                         Vendorformatted_time = current_time.strftime('%H:%M:%S')
+        #                         new_vendor_time_dict[Vendorformatted_time] = Vendors
+        #                         new_vendor_time_dict[lunchPrefredObject] = "Lunch"
+                                
+        #             VendorVsitTimeDict[vendor_key] = new_vendor_time_dict
+                    
+        #             for DepartTimeDict in depart_value:
+        #                 for timestr , departs in list(DepartTimeDict.items()):
+        #                     current_time = datetime.strptime(timestr, '%H:%M:%S')
+        #                     tour_end_time = datetime.strptime(current_value, '%H:%M:%S') + timedelta(hours=numberofHours)
+        #                     if current_time <= tour_end_time:
+        #                         Departformatted_time = current_time.strftime('%H:%M:%S')
+        #                         new_depart_time_dict[Departformatted_time] = departs
+        #                         new_depart_time_dict[lunchPrefredObject] = "Lunch"
+                                
+        #             LocationDepartDict[depart_key]=new_depart_time_dict
+        #     sorted_vendor_names = {'Vendor_Names': {k: VendorVsitTimeDict['Vendor_Names'][k] for k in sorted(VendorVsitTimeDict['Vendor_Names'])}}
+        #     sorted_depart_time = {'departTime': {k: LocationDepartDict['departTime'][k] for k in sorted(LocationDepartDict['departTime'])}}
+            
+        #     sorted_depart_time=  self.add_one_hour_after_lunch(sorted_depart_time)
+        #     sorted_vendor_names=  self.add_one_hour_after_lunch(sorted_vendor_names)
+            
+        #     for key_depart , value_depart in sorted_depart_time.items():
+        #         new_timeKey = list(value_depart.keys())
+        #         new_timeValue = list(value_depart.values())
+        #         value_depart[new_timeKey[0]] = f"the Hotel with local guide driver for {new_timeValue[0]}"
+        #         break
+        #     SortedVendorList.append(sorted_depart_time)
+        #     SortedDepartList.append(sorted_vendor_names)
+        # count = 0
+        # for final_data in tourDescriptionvalues:
+        #     for final_k , final_v in final_data.items():
+        #         final_data[final_k]=[SortedVendorList[count], SortedDepartList[count]]
+        #     count+=1
+
+        # return Itineary_dict
+    
+    # 8.  function for divide number of Vendors based on the per day tours  (Use in "DictOfAllItineraryDAta" function)
+    def DivideDataPerDAyTour(self,perdayresultItinerary,TourTotalDays):  
+        divideVendorPerDay=len(perdayresultItinerary)//TourTotalDays
+        perdayVendor=[]
+        for i in range(0,len(perdayresultItinerary),divideVendorPerDay):
+            perdayVendor.append(perdayresultItinerary[i:i+divideVendorPerDay])
+        return perdayVendor
+    
+    def add_one_hour_after_lunch(self,dictionary):
+        lunch_index = next((i for i, v in enumerate(dictionary.values()) if v == 'Lunch'), None)
+        if lunch_index is not None:
+            for key in list(dictionary.keys())[lunch_index + 1:]:
+                current_time = datetime.strptime(key, '%H:%M:%S')
+                new_time = (current_time + timedelta(hours=1)).strftime('%H:%M:%S')
+                dictionary[new_time] = dictionary.pop(key)
+        return dictionary
+      
+   # 9. Function for Chnage timedelta to string
+    def format_timedelta_to_HHMMSS(self, td):
+        td_in_seconds = td.total_seconds()
+        hours, remainder = divmod(td_in_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        hours = int(hours)
+        minutes = int(minutes)
+        seconds = int(seconds)
+        if minutes < 10:
+            minutes = "0{}".format(minutes)
+        if seconds < 10:
+            seconds = "0{}".format(seconds)
+        return "{}:{}:{}".format(hours, minutes,seconds)
+    def LunchEntry(self,lunch_time,subNewLis , DepartArrivalList):
+        print()
+        lunchTimeObjec = datetime.strptime(lunch_time, '%H:%M')
+        lunch=lunchTimeObjec.strftime("%H:%M:%S")
         
         
+        getLastDict=DepartArrivalList[-1]
+        ArriveTime=getLastDict.get("arrivalTime")
+        VisitTime=getLastDict.get("visitTime")
+        DepartArrivalListVendorList = [entry.get('Vendor') for entry in DepartArrivalList]
+        if ArriveTime is not None and VisitTime is not None:
+            ArriveTime=datetime.strptime(ArriveTime, "%H:%M:%S")
+            VisitTime=datetime.strptime(VisitTime, "%H:%M:%S")
+            SumOfArriveAndVisitTime = ArriveTime + timedelta(hours=VisitTime.hour, minutes=VisitTime.minute, seconds=VisitTime.second)
+            
+            
+            if  SumOfArriveAndVisitTime.strftime( "%H:%M:%S") <lunch: 
+                DepartArrivalList.append({"departTime":lunch,"Vendor":"Lunch","destinationLocation":"None"})
+            else:
+                DepartArrivalList.insert(-1, {"departTime":lunch,"Vendor":"Lunch","destinationLocation":"None"})
+                print(lunchTimeObjec -SumOfArriveAndVisitTime)
+        print("DepartArrivalList=====================",DepartArrivalList)
+
+        subNewLisVenors= [lst[0] for lst in subNewLis]
+        checkVendor=[vend for vend in subNewLisVenors   if vend not in DepartArrivalListVendorList]
+        print(checkVendor,"checkVendor================================")
+        return DepartArrivalList
+    
+    
+    
+    # Make Vendor and Depart data list
+    def MakevendorDict(self,data , starttime):
+        Vendor_dict2=[]
+        Depart_dict2 = {}
+        Depart_dict2['departTime']=[]
+        departTime = "10:00:00"
+        finalList = []
+        index = 0
+        arrivedVendor = ""
+        for k in range(len(data)):
+            ############ get travek Time
+            duration_parts = data[k][1].split()
+
+            duration_minutes = int(duration_parts[0])
+            duration_timedelta = timedelta(minutes=duration_minutes)
+            base_datetime = datetime(2023, 12, 8, 0, 0)
+            final_datetime = base_datetime + duration_timedelta
+            
+            GoogleMApTime = final_datetime.strftime("%H:%M:%S")
+            map_distance_timedelta = datetime.strptime(GoogleMApTime, "%H:%M:%S") - datetime(1900, 1, 1, 0, 0)
+            departedVendor = data[k][0]
+            visitTime = datetime.strptime(data[k][-1]+":00", "%H:%M:%S") 
+            if index %2 == 0:
+                finalList.append({"departTime":departTime,"travelTime":GoogleMApTime,"Vendor":departedVendor,"destinationLocation":data[k][2]})
+                arrivedVendor =  data[k][0]
+                departTime=datetime.strptime(departTime, "%H:%M:%S")
+                arrivalTime = map_distance_timedelta + departTime  - datetime(1900,1,1)
+                arrivalTime = self.format_timedelta_to_HHMMSS(arrivalTime)
+                # print("arrivalTimeeeee",arrivalTime)
+                visitTime = visitTime.strftime("%H:%M:%S")
+            else:
+                
+                finalList.append({"arrivalTime":arrivalTime,"visitTime":visitTime.strftime("%H:%M:%S"),"arrivedVendor":arrivedVendor,"destinationLocation":data[k][2]})
+                departedVendor = data[k][0]
+                arrivalTime=datetime.strptime(arrivalTime, "%H:%M:%S")
+                departTime = arrivalTime -  datetime(1900,1,1) + visitTime -  datetime(1900,1,1)
+                departTime = self.format_timedelta_to_HHMMSS(departTime)
+            index += 1
+        return finalList
+        # for i in range(len(data)):
+        #     tourstart = datetime.strptime("10:00:00", "%H:%M:%S")  # Replace with your actual starttime
+        #     duration_parts = data[i][1].split()
+
+        #     duration_minutes = int(duration_parts[0])
+        #     duration_timedelta = timedelta(minutes=duration_minutes)
+        #     base_datetime = datetime(2023, 12, 8, 0, 0)
+        #     final_datetime = base_datetime + duration_timedelta
+            
+            
+            
+        #     MApDistance = final_datetime.strftime("%H:%M:%S")
+        #     map_distance_timedelta = datetime.strptime(MApDistance, "%H:%M:%S") - datetime(1900, 1, 1, 0, 0)
+
+        #     visitTime = datetime.strptime(data[i][-1], "%H:%M")
+        #     vendor.append(data[i][0])
+        #     locations.append(data[i][2])
+        #     first_vendorTime = (tourstart + map_distance_timedelta)
+        #     formatted_time = first_vendorTime.strftime("%H:%M:%S")
+        #     time.append(formatted_time)
+        #     Vendor_dict[time[0]] = vendor[0]
+            
+        #     sum_time_current_row = (map_distance_timedelta + visitTime - datetime(1900, 1, 1))
+        #     cumulative_time+=sum_time_current_row
+        #     updated_start_time = (tourstart + cumulative_time).strftime("%H:%M:%S")   
+        #     Vendor_dict[updated_start_time]=data[i][0]
+            
+
+        #     DepartSum = (map_distance_timedelta + visitTime - datetime(1900, 1, 1))
+        #     # print("DepartSum=====",DepartSum)
+        #     print()
+        #     Departcumulative_time+=DepartSum
+        #     # print("Departcumulative_time=====",Departcumulative_time)
+        #     print()
+        #     DepartUpdated_start_time = (tourstart + Departcumulative_time).strftime("%H:%M:%S")
+        #     # print("DepartUpdated_start_time=====",DepartUpdated_start_time)
+        #     Depart_dict[tourstart.strftime("%H:%M:%S")]=locations[0]
+        #     Depart_dict[DepartUpdated_start_time] = data[i][2]
+       
+        # keys = list(Depart_dict.keys())
+        # values = list(Depart_dict.values())
+        # for i in range(len(keys) - 1):
+        #     Depart_dict[keys[i]] = values[i + 1]
+        # Depart_dict2['departTime'].append(Depart_dict)
+        
+        
+        # vendorKeys = list(Depart_dict.keys())
+        # vendorvalues = list(Depart_dict.values())
+        # for i in range(len(vendorKeys) - 1):
+        #     Depart_dict[keys[i]] = vendorvalues[i + 1]
+        # Vendor_dict2['Vendor_Names'].append(Vendor_dict)
+        # print("Depart_dict2",Depart_dict2)
+        # print()
+        # print("Vendor_dict2=====",Vendor_dict2)
+        return Vendor_dict2, Depart_dict2
+    
+    # 10 . Function for day wise all vendors time and locatons
+    def MakeDaySchduleDict(self ,totalDays,numberofHours,startTimevalues, VendorValues,LocationValues,current_value,lunch_time):
+        time_dict = {}
+        for i in range(totalDays):
+            start_index = i * numberofHours
+            end_index = (i + 1) * numberofHours
+            day_key = f"day{i + 1}"
+            time_dict[day_key] = {
+            'start_time': startTimevalues[start_index:end_index],
+            'Vendor_names': VendorValues[start_index:end_index],
+            'location': LocationValues[start_index:end_index],
+            }
+        
+        final=self.CalculatePerdAyVEndorTIme(time_dict,numberofHours,current_value,lunch_time,LocationValues)
+        # print("final===========",final)
+        return final
+     
+    # 11. Make a dictionary of day wise schdule                 (Use in " MakeDaySchduleDict Function")
+   
+    def CalculatePerdAyVEndorTIme(self, data_dict, numberofHours, current_value, lunch_time, LocationValues):
+        lunchTimeObjec = datetime.strptime(lunch_time, '%H:%M')
+        days_description = {}
+        for day, values in data_dict.items():
+            start_times = values['start_time']
+            tour_end_time = datetime.strptime(current_value, '%H:%M:%S') + timedelta(hours=numberofHours)
+            description = []
+
+            for idx, time_str in enumerate(start_times):
+                current_time = datetime.strptime(time_str, '%H:%M:%S')
+                if current_time <= tour_end_time:
+                    formatted_time = current_time.strftime('%H:%M:%S')
+                    vendor_name = values['Vendor_names'][idx]
+                    location = values['location'][idx]
+                    description.append({'time': formatted_time, 'vendor_name': vendor_name, 'location': location})
+            days_description[day] = description
+
+        for ky, val in days_description.items():
+            Location_value = [d.get("location") for d in val]
+            time_value = [d.get("time") for d in val]
+            time_value = [time_str for time_str in time_value if time_str is not None]
+            lunch_entry_exists = any(entry.get("vendor_name") == "Lunch" for entry in val)
+            departTime = {"Depart": [current_value, Location_value[0]]}
+
+            if not lunch_entry_exists:
+                lunch_entry = {'time': lunchTimeObjec.strftime('%H:%M:%S'), 'vendor_name': 'Lunch'}
+                val.insert(0, departTime)
+                val.append(lunch_entry)
+                # Sort the list based on time
+                val.sort(key=lambda x: datetime.strptime(x.get('time', current_value), '%H:%M:%S'))
+
+                # Update subsequent times
+                for i in range(val.index(lunch_entry) + 1, len(val)):
+                    current_time = datetime.strptime(val[i].get('time', current_value), '%H:%M:%S')
+                    new_time = (current_time + timedelta(hours=1)).strftime('%H:%M:%S')
+                    val[i]['time'] = new_time
+   
+        return days_description
+    
+    # 12.  Generate Itinerary      (Use in " Post Function")
+    def GenerateItineraryResponse(self , FramedItinerary):   
+        response_template=Template('''
+        Lead Client Name: {{ FramedItinerary.get('Lead Client Name')|trim }}
+        Dates of Travel: {{ FramedItinerary.get('Dates of Travel')|trim }} 
+        Tour Number: {{ FramedItinerary.get('Tour Number')|trim }}     
+        NET Value of trip to the agent: {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }} 
+        Gross Value of the trip to the client: {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}
+        {% for key, value in FramedItinerary.items() %}
+            {% if key == "Flight Arrival" %}
+                <h4>{{ value[0]|trim }}:</h4> <br>{{ value[1]|trim }}
+            {% elif key == "Tour Description" %}
+                {% for data in value %}
+                    {% for dates, description in data.items() %}
+                        <h4>{{ dates|trim }}</h4>
+                        {% if dates %}
+                            {% set combined_data = [] %}
+                            {% for descriptionData in description %}
+                                {% if descriptionData.get('departTime') %}
+                                    {% for k_, va_ in descriptionData['departTime'].items() %}
+                                        {% set _ = combined_data.append({'time': k_, 'action': 'Depart for ' ~ va_}) %}
+                                    {% endfor %}
+                                {% endif %}
+                                {% if descriptionData.get('Vendor_Names') %}
+                                    {% for ke_, val_ in descriptionData['Vendor_Names'].items() %}
+                                        {% set _ = combined_data.append({'time': ke_, 'action': val_}) %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+
+                            {% for entry in combined_data|sort(attribute='time') %}
+                                {{ entry['time'] }}: {{ entry['action'] }}<br>
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+
+                {% endfor %}
+            {% endif %}
+        {% endfor %}
+        ''')
+        response = response_template.render(FramedItinerary=FramedItinerary)
+        print("response=========>>",response)
+        return response
+                        
+        # function for provide vehicle to person
+    
+    
+    def VehicleProvide(self,person_check):
+        vehicle1="Mercedes E Class"
+        vehicle2="Mercedes Vito"
+        if person_check:
+            if person_check < 3:
+                return vehicle1
+            elif person_check >=3 and person_check <= 6:
+                return vehicle2
+        else:
+            return Response({'error':'Data Not Found'},status=status.HTTP_404_NOT_FOUND)       
+    
+    # not go falconry in july,aug and sep
+    def MonthlyRestricition(self,month):
+        month_name ="July"
+        NotIncludeMonth=["July","Aug","Sep"]
+        if month_name in NotIncludeMonth:
+            return "Falconry is Not Avaliable"
+        else:
+            return "None"
+   
+    def post(self,request , format=None):
+        rules_keys=["Days","Valletta","Marsaxlokk"," Net Values","driving distance","Falconry(july, August,Sep)"]
+        map_obj=Prediction()
+        user_id=request.data.get("user_id")
+        form_id=request.data.get("form_id")
+        
+        if not user_id :
+            return Response({"message":"User ID is required"},status=status.HTTP_204_NO_CONTENT)
+        if not form_id :
+            return Response({"message":"Form ID is required"},status=status.HTTP_204_NO_CONTENT)
+        
+        if not UserDetailGethringForm.objects.filter(Q(id=form_id) & Q(user=user_id)).exists():
+            return Response({"error": "User and Form ID not Exist"}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            # get Form data from Database.
+            query_result = UserDetailGethringForm.objects.filter(id=form_id,user=user_id).values().order_by("id")
+            
+            # get all data from 
+            AllCsvData=self.GetCsvDataFRomDatabase()
+            
+            itinerary_dict={}  
+            
+            for form_data in query_result:
+                lead_client_name=form_data.get("employee_name")                     # LEad client name
+                date_striing=form_data.get('datesOfTravel')                         # Date of Travel
+                datesOfTravel=self.DatesOfTravel(date_striing)                      # only for heading tag
+                numberOfTour=form_data.get('numberOfTour')                          # Tour NUmber
+                numberOfTravellers=form_data.get('numberOfTravellers')              # Number of Person
+                TourStart_time=form_data.get("start_time")                              # Tour start time
+                lunch_time=form_data.get("lunch_time")                              # lunch_time
+                dinner_time=form_data.get("dinner_time")                            # dinner_time
+                malta_experience=form_data.get("malta_experience")                  # malta_experience
+                flightArrivalTime=form_data.get("flightArrivalTime")
+                flightArrivalNumber=form_data.get("flightArrivalNumber")
+                
+                get_vehicle_person=self.VehicleProvide(numberOfTravellers)          # Provide vehicle based on the person.
+              
+                # code for get row based on the tag
+                tag_accomodation_value=form_data.get("accommodation_specific").lower()        
+                split_accomodation=re.split("[&/]",tag_accomodation_value)
+                
+                
+                "----------------------------------------------------------------------------------------------"
+                # Get data Row Based on the form Tag.
+                matched_rows=map_obj.find_tags_values(AllCsvData,split_accomodation)             
+                # print("matched_rows==========================>>",matched_rows)
+                netAnd_GROSS=self.netANDgross_Value(matched_rows,numberOfTravellers)            # Get value trip value for client and person
+                
+                itinerary_dict["lead_client_name"]=lead_client_name
+                itinerary_dict["datesOfTravel"]=datesOfTravel  
+                itinerary_dict["numberOfTour"]=numberOfTour
+                itinerary_dict["numberOfTravellers"]=numberOfTravellers
+                itinerary_dict["Net Trip Value Agent"]=f"€{netAnd_GROSS[0]}"      
+                itinerary_dict["Gross Trip Value Client"]=f"€{netAnd_GROSS[1]}"
+                
+                # # 1. find Total days , date , month 
+                total_days_dict=self.GetDaysFromDate(date_striing)
+                itinerary_dict.update(total_days_dict)
+
+            # get net and gross value
+            net_tripAgent=itinerary_dict.get("Net Trip Value Agent")
+            Gross_tripClient=itinerary_dict.get("Gross Trip Value Client")
+            TourTotalDays=itinerary_dict.get("Total Days")
+            # print("matched rows",matched_rows, len(matched_rows))
+            # get list of all trip days
+            AllTripDays=itinerary_dict.get("All Days") 
+
+            StartingPointList=["Valletta","Senglea", "St Julians"] 
+            VendorTimeVistHour={}
+            Locationslist=[]
+            
+            for data_dict in matched_rows:
+                Vendors=data_dict.get("Vendor")  
+                time=data_dict.get("Time of Visit hours")      
+                Locationslist.append(data_dict.get("Location") )
+                # VendorTimeVistHour["Hilton(Malta)"]='None'
+                VendorTimeVistHour[Vendors, time]=time
+            # get distance time between places     
+            keys_list=list(VendorTimeVistHour.keys())
+            ActivityVisitTime=(VendorTimeVistHour.values())
+            TimeLoc=self.VendorToVendorTime(keys_list,Locationslist)
+            # add time , location and vendor in this list.
+            perdayresultItinerary=[]        
+            for sublist, location,timeVist in zip(TimeLoc, Locationslist,ActivityVisitTime):
+                if str(timeVist) == "None" or timeVist.strip() == "" or timeVist == "0:00":
+                    timeVist = "00:30"
+                for j in sublist:
+                    perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist])
+
+            Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,
+                        AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience)
+            
+            Framed_response=self.GenerateItineraryResponse(Gotitinerary_dict)
+            
+            
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
 

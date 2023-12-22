@@ -1,68 +1,92 @@
 from django.test import TestCase
 
-'''
+# # Create your tests here.
 
-  def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,AllTripDays,flightArrivalTime,flightArrivalNumber,StartingPointList,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience):
-        StartTourKey = False
-        Itineary_dict = {}
-        Itineary_dict["Lead Client Name"]=lead_client_name
-        Itineary_dict["Dates of Travel"]=datesOfTravel
-        Itineary_dict["Tour Number"]=numberOfTour
-        Itineary_dict["NET Value of trip to the Agent"]=net_tripAgent
-        Itineary_dict["Gross Value of the trip to the Client"]=Gross_tripClient
-        Itineary_dict["Days"]=AllTripDays
-        Itineary_dict["Flight Arrival"]=[AllTripDays[0],f"{flightArrivalTime} - Arrival at Malta International Airport on {flightArrivalNumber} and privately transfer to the hotel"]
-        
-        arrival_datetime = datetime.strptime(flightArrivalTime, "%H:%M")
-        # Check if the arrival time is before 12:00 PM
-        if arrival_datetime.time() < datetime.strptime("12:00", "%H:%M").time():
-            StartTourKey = True
+
+import requests
+from ortools.constraint_solver import routing_enums_pb2
+from ortools.constraint_solver import pywrapcp
+
+def generate_itinerary(api_key, locations, num_days):
+    def get_distance_matrix(api_key, origins, destinations):
+        base_url = "https://maps.googleapis.com/maps/api/distancematrix/json"
+        params = {
+            'origins': '|'.join(origins),
+            'destinations': '|'.join(destinations),
+            'key': api_key,
+        }
+        response = requests.get(base_url, params=params)
+        data = response.json()
+
+        if data['status'] == 'OK':
+            rows = data['rows']
+            distance_matrix = [[element['distance']['value'] for element in row['elements']] for row in rows]
+            return distance_matrix
         else:
-            StartTourKey = False
-        
-        Itineary_dict["Tour Description"]=[]
-            
-        if StartTourKey:
-                # When Visit time less than 12 vje
-            for days in AllTripDays:
-                Itineary_dict["Tour Description"].append({days:{}})
-        else: 
-            # When Visit time above 12 vje
-            del AllTripDays[0]
-            for days in AllTripDays:
-                Itineary_dict["Tour Description"].append({days:{}})
-        
-        tour_start_datetime = datetime.strptime(TourStart_time, "%H:%M")
-        startTime = tour_start_datetime.strftime("%H:%M:%S")
-        PerDayActivity=self.DivideDataPerDAyTour(perdayresultItinerary,TourTotalDays)      # divide list per days itinerary list
-        current_value=startTime
-        TimeValues = []
-        VendorValues = []
-        LocationValues = []
-        numberofHours = int(re.search(r'\d+', malta_experience).group())
-        for subNewLis in PerDayActivity:
-            num_groups = len(subNewLis)
-            for j, day_list in enumerate(subNewLis):
-                if j % num_groups == 0:
-                    startTime = current_value
-                
-                # Assuming self.ItineraryTimeValues returns startTime, Vendorname, location
-                startTime, Vendorname, location = self.ItineraryTimeValues(startTime, day_list)
-                TimeValues.append(startTime)
-                VendorValues.append(Vendorname)
-                LocationValues.append(location)
-        tourDescriptionvalues=Itineary_dict.get('Tour Description')
-        totalDays=len(tourDescriptionvalues)
-        
-        
-        PerDaySchduleDict=self.MakeDaySchduleDict(totalDays,numberofHours,TimeValues,VendorValues,LocationValues,current_value,lunch_time)
-        # tourDescriptionvalues=Itineary_dict.get('Tour Description')
-        count = 0
-        for data in tourDescriptionvalues:
-            valuesList  = list(PerDaySchduleDict.values())
-            for k_ ,v_ in data.items():
-                data[k_] = valuesList[count]
-            count+=1
-        return Itineary_dict
-    
-'''
+            raise Exception(f"Error: {data['status']} - {data.get('error_message', 'Unknown error')}")
+
+    def create_data_model(locations, num_days):
+        # Calculate distance matrix for all locations
+        distance_matrix = get_distance_matrix(api_key, locations, locations)
+
+        data = {}
+        data['locations'] = locations
+        data['num_locations'] = len(locations)
+        data['num_vehicles'] = 1
+        data['depot'] = 0
+        data['distance_matrix'] = distance_matrix
+
+        return data
+
+    def find_max_distance_index(visited, distance_matrix, current_location):
+        valid_indices = [i for i in range(len(distance_matrix[current_location])) if i not in visited]
+        if not valid_indices:
+            return None
+        max_distance_index = max(valid_indices, key=lambda i: distance_matrix[current_location][i])
+        return max_distance_index
+
+    data = create_data_model(locations, num_days)
+    manager = pywrapcp.RoutingIndexManager(data['num_locations'], data['num_vehicles'], data['depot'])
+    routing = pywrapcp.RoutingModel(manager)
+
+    def distance_callback(from_index, to_index):
+        return data['distance_matrix'][manager.IndexToNode(from_index)][manager.IndexToNode(to_index)]
+
+    transit_callback_index = routing.RegisterTransitCallback(distance_callback)
+    routing.SetArcCostEvaluatorOfAllVehicles(transit_callback_index)
+    routing.AddDimension(transit_callback_index, 0, 1, True, 'Visits')
+
+    visited_locations = {0}  
+    current_location = 0  
+
+    PerDayLocationDict={}
+    for day in range(1, num_days + 1):
+        PerDayLocationDict[f"Location {day}"]=data['locations'][current_location]
+        next_location_index = find_max_distance_index(visited_locations, data['distance_matrix'], current_location)
+        if next_location_index is not None:
+            visited_locations.add(next_location_index)
+            current_location = next_location_index
+
+    search_parameters = pywrapcp.DefaultRoutingSearchParameters()
+    search_parameters.time_limit.seconds = 10
+
+    solution = routing.SolveWithParameters(search_parameters)
+
+    if solution:
+        return (manager, routing, solution)
+    return PerDayLocationDict
+
+# Example usage with latitude and longitude coordinates:
+api_key = ''  # Replace with your actual API key
+locations = [
+    '35.9223341,14.4863325',  # hotel
+    '35.82969606539233,14.441795580880497',  # haqar kim
+    '35.87100627260113,14.507424579408363',  # hyo=pogeum
+    '35.84172667416176,14.54411242364746',  # Marsaxlokk
+    '35.83656231679167,14.524218184171236'  # Ghar Dalam
+]
+
+# Set the number of days (you may adjust as needed)
+num_days = len(locations)
+ans=generate_itinerary(api_key, locations, num_days)
+

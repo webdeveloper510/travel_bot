@@ -58,8 +58,8 @@ import spacy
 from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
-url="http://127.0.0.1:8000/static/media/"
-# url="http://16.170.254.147:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
 
 def get_tokens_for_user(user):  
@@ -695,7 +695,6 @@ class UserInfoGethring(APIView):
         DatesOfTravel=request.data.get("DatesOfTravel")
         NumberOfTravellers=request.data.get("NumberOfTravellers")
         AgesOfTravellers=request.data.get("AgesOfTravellers")
-        LengthToStay=request.data.get("LengthToStay")
         BudgetSelect=request.data.get("BudgetSelect")
         FlightArrivalTime=request.data.get("FlightArrivalTime")
         FlightArrivalNumber=request.data.get("FlightArrivalNumber")
@@ -730,7 +729,6 @@ class UserInfoGethring(APIView):
                     nationality=Nationalities,
                     datesOfTravel=DatesOfTravel,
                     numberOfTravellers=NumberOfTravellers,
-                    lengthToStay=LengthToStay,
                     agesOfTravellers=AgesOfTravellers,
                     select_budget=BudgetSelect,
                     flightArrivalTime=FlightArrivalTime,

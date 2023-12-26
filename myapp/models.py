@@ -190,7 +190,6 @@ class UserDetailGethringForm(models.Model):
     datesOfTravel=models.CharField(max_length=255)
     numberOfTravellers=models.IntegerField()
     agesOfTravellers=models.CharField(max_length=255)
-    lengthToStay=models.CharField(max_length=255)
     select_budget=models.TextField(choices=SelectBudget)
     flightArrivalTime=models.TextField(blank=True ,null=True)
     flightArrivalNumber=models.CharField(max_length=255,blank=True,null=True)

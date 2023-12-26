@@ -153,26 +153,6 @@ class UserDetailGethringForm(models.Model):
         ('Other','Other'),
     ]
 
-    Accommodation_Specifics = [
-        ('Knights','Knights'),
-        ('Artisans','Artisans'),
-        ('Food & Wine','Food & Wine'),
-        ('Nobile Malta','Nobile Malta'),
-        ('Exclusive/Private/After hours','Exclusive/Private/After hours'),
-        ('Shopping','Shopping'),
-        ('Catholic','Catholic'),
-        ('Heritage or Culture/UNESCO','Heritage or Culture/UNESCO'),
-        ('Art','Art'),
-        ('Soft Adventure','Soft Adventure'),
-        ('Active','Active'),
-        ('Water Activity','Water Activity'),
-        ('WWII','WWII'),
-        ('Family','Family'),
-        ('Music','Music'),
-        ('Gozo','Gozo'),
-        ('Nature/Outdoors','Nature/Outdoors'),
-        ('Nightlife','Nightlife'),
-    ]
     Malta_Experience = [
         ('Not more than 4 Hours','Not more than 4 Hours'),
         ('Not more than 6 Hours','Not more than 6 Hours'),
@@ -201,16 +181,6 @@ class UserDetailGethringForm(models.Model):
         ('Other','Other'),
     ]
 
-    Issues_and_Phobias = [
-        ('Claustrophobic','Claustrophobic'),
-        ('Vegan','Vegan'),
-        ('Does not drink','Does not drink'),
-        ('Does not swim/like being on the water','Does not swim/like being on the water'),
-        ('No alcohol','No alcohol'),
-        ('Jewish','Jewish'),
-        ('Vegetarian','Vegetarian'),
-        ('Muslim','Muslim'),
-    ]
     user=models.ForeignKey(User , on_delete=models.CASCADE)
     employee_name=models.CharField(max_length=255)
     numberOfTour=models.IntegerField(unique=True)
@@ -219,17 +189,18 @@ class UserDetailGethringForm(models.Model):
     nationality=models.CharField(max_length=255)
     datesOfTravel=models.CharField(max_length=255)
     numberOfTravellers=models.IntegerField()
-    agesOfTravellers=models.CharField(max_length=255)   
+    agesOfTravellers=models.CharField(max_length=255)
     lengthToStay=models.CharField(max_length=255)
     select_budget=models.TextField(choices=SelectBudget)
     flightArrivalTime=models.TextField(blank=True ,null=True)
     flightArrivalNumber=models.CharField(max_length=255,blank=True,null=True)
     flightDepartureTime=models.TextField(blank=True , null=True)
     flightDepartureNumber=models.CharField(max_length=255,blank=True,null=True)
-    accommodation_specific=models.TextField(choices=Accommodation_Specifics)
+    accommodation_specific=models.TextField()
     malta_experience=models.TextField(choices=Malta_Experience)
     start_time=models.TextField(choices=Start_Time)
     lunch_time=models.TextField(choices=Lunch_Time)
     dinner_time=models.TextField(choices=Dinner_Time)
-    issues_n_phobias=models.TextField(choices=Issues_and_Phobias)
+    issues_n_phobias=models.TextField()
+    other_details=models.TextField(blank=True, null=True)
 

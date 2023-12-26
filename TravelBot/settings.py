@@ -146,8 +146,8 @@ STATICFILES_DIRS = [
 STATIC_URL = '/static/'
 MEDIA_ROOT = BASE_DIR /"static/media"
 MEDIA_URL = "/media/"
-# BASE_URL='http://127.0.0.1:8000//static'
-BASE_URL='http://16.170.254.147:8000/static'
+BASE_URL='http://127.0.0.1:8000//static'
+# BASE_URL='http://16.170.254.147:8000/static'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field

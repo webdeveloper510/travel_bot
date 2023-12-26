@@ -58,8 +58,8 @@ import spacy
 from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.170.254.147:8000/static/media/"
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
 
 def get_tokens_for_user(user):  
@@ -680,7 +680,6 @@ class Prediction(APIView):
 # API for add info of clients from the form
 class UserInfoGethring(APIView):
     authentication_classes=[JWTAuthentication]
-
     def get(self, request):
         if request.user.id:
             Traveller_Data = UserDetailGethringForm.objects.all().order_by('id').values()
@@ -707,17 +706,17 @@ class UserInfoGethring(APIView):
         StartTime=request.data.get("StartTime")
         LunchTime=request.data.get("LunchTime")
         DinnerTime=request.data.get("DinnerTime")
-        IssuesNPhobias=request.data.get("IssuesNPhobias")
+        IssuesNPhobias=request.data.get("IssuesPhobias")
+        OtherDetails=request.data.get("OtherDetails")
         allValuesGet=[
-            EmaployeeName,TourNumber,ClienFirstName,ClienLastName,Nationalities,DatesOfTravel,NumberOfTravellers,AgesOfTravellers,LengthToStay,BudgetSelect,FlightArrivalTime,FlightArrivalNumber,FlightDepartureTime,FlightDepartureNumber,AccommodationSpecific,MaltaExperience,StartTime,LunchTime,DinnerTime,IssuesNPhobias
+            EmaployeeName,TourNumber,ClienFirstName,ClienLastName,Nationalities,DatesOfTravel,NumberOfTravellers,AgesOfTravellers,BudgetSelect,AccommodationSpecific,MaltaExperience,StartTime,LunchTime,DinnerTime,IssuesNPhobias
         ]
         errorArray=[
-            "employee_name","numberOfTour","client_firstName","client_lastName","nationality","datesOfTravel","numberOfTravellers","agesOfTravellers","lengthToStay","select_budget","flightArrivalTime","flightArrivalNumber","flightDepartureTime","flightDepartureNumber","accommodation_specific","malta_experience","start_time","lunch_time","dinner_time","issues_n_phobias"
+            "Employee Name","Number of Tour","Firstname of Client","Lastname of Client","Nationality","Dates of Travel","Number of Travellers","Ages of Travellers","Budget Select","Accommodation Specific and Tags","Malta Experience","Start Time","Lunch Time","Dinner Time","Issues and Phobias"
         ]
         for index,  errorG in enumerate(allValuesGet):
             if errorG=="" or errorG=="null":
-                return Response({'error':  {'message': f"{errorArray[index]} is Required !"}},status=status.HTTP_400_BAD_REQUEST)
-        
+                return Response({'error':  {'message': f" The Field {errorArray[index]} is Required !"}},status=status.HTTP_400_BAD_REQUEST)
         if UserDetailGethringForm.objects.filter(numberOfTour=TourNumber).exists():
             return Response({"error":{"message":"This Tour Number is already exist"}},status=status.HTTP_406_NOT_ACCEPTABLE)
         
@@ -731,8 +730,8 @@ class UserInfoGethring(APIView):
                     nationality=Nationalities,
                     datesOfTravel=DatesOfTravel,
                     numberOfTravellers=NumberOfTravellers,
-                    agesOfTravellers=AgesOfTravellers,
                     lengthToStay=LengthToStay,
+                    agesOfTravellers=AgesOfTravellers,
                     select_budget=BudgetSelect,
                     flightArrivalTime=FlightArrivalTime,
                     flightArrivalNumber=FlightArrivalNumber,
@@ -743,11 +742,12 @@ class UserInfoGethring(APIView):
                     start_time=StartTime,
                     lunch_time=LunchTime,
                     dinner_time=DinnerTime,
-                    issues_n_phobias=IssuesNPhobias
+                    issues_n_phobias=IssuesNPhobias,
+                    other_details=OtherDetails
                 )
                 
                 formsubmit.save()
-                return Response({'status':{'message': "Form Submitted Successfully !"},"id":formsubmit.id},status=status.HTTP_201_CREATED,)
+                return Response({'status':{ 'message': "Form Submitted Successfully !"}},status=status.HTTP_201_CREATED,)
         else:
             return Response({'error': { 'message': "User Not Found"}},status=status.HTTP_400_BAD_REQUEST,)
       
@@ -865,10 +865,11 @@ class FRameItinerary(APIView):
                     LocationDistance.append(distance_time)
             except googlemaps.exceptions.ApiError as api_error:
                 error_list.append({"error": str(api_error), "locations": (values[0], values[1])})
+        
         return LocationDistance
     
     # 8 . Main Function for Create Dictionary to generate Dictionary    (Use In 'Post' Function)
-    def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person):
+    def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person):
         StartTourKey = False
         Itineary_dict = {}
         Itineary_dict["Lead Client Name"]=lead_client_name
@@ -876,10 +877,11 @@ class FRameItinerary(APIView):
         Itineary_dict["Tour Number"]=numberOfTour
         Itineary_dict["NET Value of trip to the Agent"]=net_tripAgent
         Itineary_dict["Gross Value of the trip to the Client"]=Gross_tripClient
+        Itineary_dict["Nationality"]=nationality
         Itineary_dict["Days"]=AllTripDays
         Itineary_dict["Flight Arrival"]=[AllTripDays[0],f"{flightArrivalTime} - Arrival at Malta International Airport on {flightArrivalNumber} and privately transfer to the hotel"]
         Itineary_dict["Vehicle to be used"]=get_vehicle_person
-
+       
         arrival_datetime = datetime.strptime(flightArrivalTime, "%H:%M")
         # Check if the arrival time is before 12:00 PM
         if arrival_datetime.time() < datetime.strptime("12:00", "%H:%M").time():
@@ -915,11 +917,15 @@ class FRameItinerary(APIView):
             lunchEntryDictionary=self.LunchEntry(lunch_time , DepartArrivalList)
             print()
             SortedDepartList.append(lunchEntryDictionary)
-        count=0
+        count = 0
         for final_data in tourDescriptionvalues:
-            for key ,val in final_data.items():
-                final_data[key]=SortedDepartList[count]
-            count+=1
+            for key, val in final_data.items():
+                if count <len(SortedDepartList):
+                    final_data[key] = SortedDepartList[count]
+                    count += 1
+                else:
+                    final_data[key] = None
+    
         return Itineary_dict
     
     # function for sort the array 
@@ -935,6 +941,7 @@ class FRameItinerary(APIView):
                         unique_data[index] = values
         result_list = list(unique_data.values())
         return result_list
+    
     # 9.  function for divide number of Vendors based on the per day tours  (Use in "DictOfAllItineraryDAta" function)
     def DivideDataPerDAyTour(self,perdayresultItinerary,TourTotalDays,numberofHours,current_value):  
         tour_end_time = datetime.strptime(current_value, '%H:%M:%S') + timedelta(hours=numberofHours-1)- datetime(1900, 1, 1)
@@ -975,7 +982,8 @@ class FRameItinerary(APIView):
         for lstdata in days:
             daysCordinates=[f"{lst[4]['lat']},{lst[4]['lng']}" for lst in lstdata]
             OptimizeVendor=generate_itinerary(api_key, daysCordinates, num_days=len(daysCordinates))
-            OptimizeVendorList.append([OptimizeVendor])
+            if isinstance(OptimizeVendor, dict):
+                OptimizeVendorList.append([OptimizeVendor])
         optimizeValues = [[{'lat': float(cordinates.split(',')[0]),'lng': float(cordinates.split(',')[1])} for cordinates in optimizeVendor.values()] for optimizeVendorList in OptimizeVendorList for optimizeVendor in optimizeVendorList ]
         for data in days:
             for val in optimizeValues:
@@ -1062,8 +1070,6 @@ class FRameItinerary(APIView):
             SumOfDepartTravel =self.addTime(departTime, travelTime)
             DepartArrivalList.insert(vendor[0] + 1, {"departTime": SumOfDepartTravel, "destinationLocation": "Restaurant"})
         updatedDepartArrivalList=self.add_one_hour_after_lunch(DepartArrivalList)
-        # print("updatedDepartArrivalList============>>",updatedDepartArrivalList)
-        print()
         return updatedDepartArrivalList
     
     # 13. Make Vendor and Depart data list
@@ -1117,7 +1123,7 @@ class FRameItinerary(APIView):
         return finalList
     
     # 14.  Generate Itinerary      (Use in " Post Function")
-    def GenerateItineraryResponse(self , FramedItinerary):   
+    def GenerateItineraryResponse(self , FramedItinerary):
         response_template=Template('''
         Lead Client Name: {{ FramedItinerary.get('Lead Client Name')|trim }}
         Dates of Travel: {{ FramedItinerary.get('Dates of Travel')|trim }} 
@@ -1125,6 +1131,7 @@ class FRameItinerary(APIView):
         NET Value of trip to the agent: {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }} 
         Gross Value of the trip to the client: {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}
         Vehicle to be used: {{ FramedItinerary.get('Vehicle to be used')|trim }}
+        Nationality: {{ FramedItinerary.get('Nationality')|trim }}
         {% for key, value in FramedItinerary.items() %}
             {% if key == "Flight Arrival" %}
                 <h4>{{ value[0]|trim }}:</h4> <br>{{ value[1]|trim }}
@@ -1132,18 +1139,22 @@ class FRameItinerary(APIView):
                 {% for data in value %}
                     {% for dates, description in data.items() %}
                         <h4>{{ dates|trim }}</h4>
-                        {% if dates %}
-                        {% for entry in description %}
-                            {% if "departTime"  in entry %}
-                                {% if loop.first %}
-                                {{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}
-                                {% else %}
-                                {{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}
-                                {% endif %}
-                            {% elif "arrivalTime" in entry %}
-                                {{ entry.arrivalTime }} : {{ entry.arrivedVendor }}
+                        {% if description != None %}
+                            {% if dates %}
+                                {% for entry in description %}
+                                    {% if "departTime"  in entry %}
+                                        {% if loop.first %}
+                                        {{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}
+                                        {% else %}
+                                        {{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}
+                                        {% endif %}
+                                    {% elif "arrivalTime" in entry %}
+                                        {{ entry.arrivalTime }} : {{ entry.arrivedVendor }}
+                                    {% endif %}
+                                {% endfor %}
                             {% endif %}
-                        {% endfor %}
+                        {% elif description == None %}
+                            <p>{{description}}</p>
                         {% endif %}
                     {% endfor %}
                 {% endfor %}
@@ -1153,7 +1164,7 @@ class FRameItinerary(APIView):
         response = response_template.render(FramedItinerary=FramedItinerary)
         print("response=========>>",response)
         return response
-                        
+
         # function for provide vehicle to person
     
     # 15 Vehicle Provide Function
@@ -1204,6 +1215,7 @@ class FRameItinerary(APIView):
                 date_striing=form_data.get('datesOfTravel')                         # Date of Travel
                 datesOfTravel=self.DatesOfTravel(date_striing)                      # only for heading tag
                 numberOfTour=form_data.get('numberOfTour')                          # Tour NUmber
+                nationality=form_data.get("nationality")
                 numberOfTravellers=form_data.get('numberOfTravellers')              # Number of Person
                 TourStart_time=form_data.get("start_time")                              # Tour start time
                 lunch_time=form_data.get("lunch_time")                              # lunch_time
@@ -1231,6 +1243,7 @@ class FRameItinerary(APIView):
                 itinerary_dict["numberOfTravellers"]=numberOfTravellers
                 itinerary_dict["Net Trip Value Agent"]=f"€{netAnd_GROSS[0]}"      
                 itinerary_dict["Gross Trip Value Client"]=f"€{netAnd_GROSS[1]}"
+              
                 
                 # # 1. find Total days , date , month 
                 total_days_dict=self.GetDaysFromDate(date_striing)
@@ -1265,10 +1278,15 @@ class FRameItinerary(APIView):
                     timeVist = "00:30"
                 for j in sublist:
                     perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist,j[4],j[5]])
-            Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,
+            Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,
                         AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person)
             
             Framed_response=self.GenerateItineraryResponse(Gotitinerary_dict)
+            if Framed_response:
+                return Response({'data': Framed_response , "message":"success"},status=status.HTTP_200_OK)
+            else:
+                return Response({"message":"Data Not Found"},status=status.HTTP_404_NOT_FOUND)
+
             
             
 class ChatDetailsByID(APIView):

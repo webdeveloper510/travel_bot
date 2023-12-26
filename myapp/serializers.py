@@ -104,5 +104,5 @@ class UserChangePasswordSerializer(serializers.Serializer):
             
 class TravelFormSubmitSerializer(serializers.Serializer):
    class Meta:
-      model = UserDetailGethringForm
-      fields = '__all__'
+        model = UserDetailGethringForm
+        fields = '__all__'

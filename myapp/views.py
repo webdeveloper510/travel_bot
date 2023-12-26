@@ -909,7 +909,6 @@ class FRameItinerary(APIView):
         lunchPrefred=datetime.strptime(lunch_time,"%H:%M")
         lunchPrefredObject=lunchPrefred.strftime("%H:%M:%S")
         SortedDepartList=[]
-        locations=[]
         for subNewLis in PerDayActivity:
             # Assuming starttime and cumulative_time are initialized appropriately for each set of activities
             DepartArrivalList=self.MakevendorDict(subNewLis, startTime,lunch_time)
@@ -922,15 +921,27 @@ class FRameItinerary(APIView):
                 final_data[key]=SortedDepartList[count]
             count+=1
         return Itineary_dict
-    #
+    
+    # function for sort the array 
+    def getist(self, data , val):
+        unique_data={}
+        arr = [(index, arr, idx, item) for index, arr in enumerate(data) for idx, item in enumerate(val) if item in arr[:-1]]
+        getarr = [(getdata[2], getdata[1]) for getdata in arr]
+        sorted_getarr = sorted(getarr, key=lambda x: x[0])
+        if sorted_getarr:
+            for index, values in sorted_getarr:
+                if index not in unique_data:
+                    if values not in unique_data.values():
+                        unique_data[index] = values
+        result_list = list(unique_data.values())
+        return result_list
     # 9.  function for divide number of Vendors based on the per day tours  (Use in "DictOfAllItineraryDAta" function)
     def DivideDataPerDAyTour(self,perdayresultItinerary,TourTotalDays,numberofHours,current_value):  
         tour_end_time = datetime.strptime(current_value, '%H:%M:%S') + timedelta(hours=numberofHours-1)- datetime(1900, 1, 1)
         cumulative_time = timedelta()
         current_day_data=[]
         days=[]
-        newList = []
-        newData = {}
+        sorted_days=[]
         for index, data in enumerate(perdayresultItinerary):
             tourstart = datetime.strptime(current_value, '%H:%M:%S')
             duration_parts = data[1].split()
@@ -966,12 +977,13 @@ class FRameItinerary(APIView):
             OptimizeVendor=generate_itinerary(api_key, daysCordinates, num_days=len(daysCordinates))
             OptimizeVendorList.append([OptimizeVendor])
         optimizeValues = [[{'lat': float(cordinates.split(',')[0]),'lng': float(cordinates.split(',')[1])} for cordinates in optimizeVendor.values()] for optimizeVendorList in OptimizeVendorList for optimizeVendor in optimizeVendorList ]
-        combined_data = list(zip(optimizeValues, days))
-        sorted_combined_data = sorted(combined_data, key=lambda x: optimizeValues.index(x[0]))
-        sorted_values, sorted_data = zip(*sorted_combined_data)
-        print("sorted_data======================>>>>",sorted_data)
+        for data in days:
+            for val in optimizeValues:
+                response=self.getist(data , val)
+                if response and len(response) > 1:
+                    sorted_days.append(response)
         
-        return days  
+        return sorted_days  
          
     # Function for ading two times  
     def addTime(self,departTime,travelTime):
@@ -1039,6 +1051,9 @@ class FRameItinerary(APIView):
                 elif SumOfArriveAndVisitTime > window_before_lunch:
                     DepartArrivalList.insert(idx, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
                     break
+                
+                
+        # Calculate departime for vendor to restaurants
         vendor = [i - 1 for i, entry in enumerate(DepartArrivalList) if entry.get("Vendor") == "Lunch"]
         getArray = [DepartArrivalList[i] for i in vendor] 
         for dict in getArray:
@@ -1136,7 +1151,7 @@ class FRameItinerary(APIView):
         {% endfor %}
         ''')
         response = response_template.render(FramedItinerary=FramedItinerary)
-        # print("response=========>>",response)
+        print("response=========>>",response)
         return response
                         
         # function for provide vehicle to person

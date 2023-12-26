@@ -1123,16 +1123,19 @@ class FRameItinerary(APIView):
     # 14.  Generate Itinerary      (Use in " Post Function")
     def GenerateItineraryResponse(self , FramedItinerary):
         response_template=Template('''
-        Lead Client Name: {{ FramedItinerary.get('Lead Client Name')|trim }}
-        Dates of Travel: {{ FramedItinerary.get('Dates of Travel')|trim }} 
-        Tour Number: {{ FramedItinerary.get('Tour Number')|trim }}     
-        NET Value of trip to the agent: {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }} 
-        Gross Value of the trip to the client: {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}
-        Vehicle to be used: {{ FramedItinerary.get('Vehicle to be used')|trim }}
-        Nationality: {{ FramedItinerary.get('Nationality')|trim }}
+        <div>
+        <p> Lead Client Name: {{ FramedItinerary.get('Lead Client Name')|trim }}</p>
+        <p> Dates of Travel: {{ FramedItinerary.get('Dates of Travel')|trim }} </p>
+        <p> Tour Number: {{ FramedItinerary.get('Tour Number')|trim }}     </p>
+        <p> NET Value of trip to the agent: {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }} </p>
+        <p> Gross Value of the trip to the client: {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}</p>
+        <p> Vehicle to be used: {{ FramedItinerary.get('Vehicle to be used')|trim }}</p>
+        <p> Nationality: {{ FramedItinerary.get('Nationality')|trim }}</p>
+        <br>
+        <ul>
         {% for key, value in FramedItinerary.items() %}
             {% if key == "Flight Arrival" %}
-                <h4>{{ value[0]|trim }}:</h4> <br>{{ value[1]|trim }}
+                <li><h4>{{ value[0]|trim }}:</h4> <br>{{ value[1]|trim }}</li>
             {% elif key == "Tour Description" %}
                 {% for data in value %}
                     {% for dates, description in data.items() %}
@@ -1142,12 +1145,12 @@ class FRameItinerary(APIView):
                                 {% for entry in description %}
                                     {% if "departTime"  in entry %}
                                         {% if loop.first %}
-                                        {{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}
+                                        <li>{{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}</li>
                                         {% else %}
-                                        {{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}
+                                        <li>{{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}</li>
                                         {% endif %}
                                     {% elif "arrivalTime" in entry %}
-                                        {{ entry.arrivalTime }} : {{ entry.arrivedVendor }}
+                                        <li>{{ entry.arrivalTime }} : {{ entry.arrivedVendor }}</li>
                                     {% endif %}
                                 {% endfor %}
                             {% endif %}
@@ -1158,6 +1161,8 @@ class FRameItinerary(APIView):
                 {% endfor %}
             {% endif %}
         {% endfor %}
+        </ul>
+        </div>
         ''')
         response = response_template.render(FramedItinerary=FramedItinerary)
         print("response=========>>",response)
@@ -1226,8 +1231,8 @@ class FRameItinerary(APIView):
               
                 # code for get row based on the tag
                 tag_accomodation_value=form_data.get("accommodation_specific").lower()        
-                split_accomodation=re.split("[&/]",tag_accomodation_value)
-                
+                split_accomodation=re.split("[&/,]| or",tag_accomodation_value)
+                print("split_accomodation--------------",split_accomodation)
                 
                 "----------------------------------------------------------------------------------------------"
                 # Get data Row Based on the form Tag.

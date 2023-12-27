@@ -58,8 +58,8 @@ import spacy
 from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.170.254.147:8000/static/media/"
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
 
 def get_tokens_for_user(user):  
@@ -863,7 +863,6 @@ class FRameItinerary(APIView):
                     LocationDistance.append(distance_time)
             except googlemaps.exceptions.ApiError as api_error:
                 error_list.append({"error": str(api_error), "locations": (values[0], values[1])})
-        
         return LocationDistance
     
     # 8 . Main Function for Create Dictionary to generate Dictionary    (Use In 'Post' Function)
@@ -913,7 +912,6 @@ class FRameItinerary(APIView):
             # Assuming starttime and cumulative_time are initialized appropriately for each set of activities
             DepartArrivalList=self.MakevendorDict(subNewLis, startTime,lunch_time)
             lunchEntryDictionary=self.LunchEntry(lunch_time , DepartArrivalList)
-            print()
             SortedDepartList.append(lunchEntryDictionary)
         count = 0
         for final_data in tourDescriptionvalues:
@@ -923,7 +921,6 @@ class FRameItinerary(APIView):
                     count += 1
                 else:
                     final_data[key] = None
-    
         return Itineary_dict
     
     # function for sort the array 
@@ -973,7 +970,8 @@ class FRameItinerary(APIView):
                     cumulative_time = timedelta()
                     days.append(current_day_data)  
                     current_day_data = []
-                
+           
+        print()   
         if current_day_data:
             days.append(current_day_data)
         OptimizeVendorList=[]
@@ -988,7 +986,6 @@ class FRameItinerary(APIView):
                 response=self.getist(data , val)
                 if response and len(response) > 1:
                     sorted_days.append(response)
-        
         return sorted_days  
          
     # Function for ading two times  
@@ -1072,7 +1069,6 @@ class FRameItinerary(APIView):
     
     # 13. Make Vendor and Depart data list
     def MakevendorDict(self,data , starttime,lunch_time):
-
         lunchTimeObjec = datetime.strptime(lunch_time, '%H:%M')
         lunch=lunchTimeObjec.strftime("%H:%M:%S")
         Depart_dict2 = {}
@@ -1082,6 +1078,7 @@ class FRameItinerary(APIView):
         finalList = []
         index = 0
         arrivedVendor = ""
+        
         for k in range(len(data)):
             duration_parts = data[k][1].split()
             duration_minutes = int(duration_parts[0])
@@ -1092,7 +1089,8 @@ class FRameItinerary(APIView):
             GoogleMApTime = final_datetime.strftime("%H:%M:%S")
             map_distance_timedelta = datetime.strptime(GoogleMApTime, "%H:%M:%S") - datetime(1900, 1, 1, 0, 0)
             
-            departedVendor = data[k][0]
+            departedVendor = data[k][2]
+            print("departedVendor============>>>",departedVendor,)
             visitTime = datetime.strptime(data[k][3]+":00", "%H:%M:%S") 
 
             if index %2 == 0:
@@ -1194,19 +1192,17 @@ class FRameItinerary(APIView):
     def post(self,request , format=None):
         rules_keys=["Days","Valletta","Marsaxlokk"," Net Values","driving distance","Falconry(july, August,Sep)"]
         map_obj=Prediction()
-        user_id=request.data.get("user_id")
+
         form_id=request.data.get("form_id")
-        
-        if not user_id :
-            return Response({"message":"User ID is required"},status=status.HTTP_204_NO_CONTENT)
+       
         if not form_id :
             return Response({"message":"Form ID is required"},status=status.HTTP_204_NO_CONTENT)
         
-        if not UserDetailGethringForm.objects.filter(Q(id=form_id) & Q(user=user_id)).exists():
-            return Response({"error": "User and Form ID not Exist"}, status=status.HTTP_404_NOT_FOUND)
+        if not UserDetailGethringForm.objects.filter(id=form_id).exists():
+            return Response({"error": "Form ID not Exist"}, status=status.HTTP_404_NOT_FOUND)
         else:
             # get Form data from Database.
-            query_result = UserDetailGethringForm.objects.filter(id=form_id,user=user_id).values().order_by("id")
+            query_result = UserDetailGethringForm.objects.filter(id=form_id).values().order_by("id")
             
             # get all data from 
             AllCsvData=self.GetCsvDataFRomDatabase()
@@ -1232,12 +1228,11 @@ class FRameItinerary(APIView):
                 # code for get row based on the tag
                 tag_accomodation_value=form_data.get("accommodation_specific").lower()        
                 split_accomodation=re.split("[&/,]| or",tag_accomodation_value)
-                print("split_accomodation--------------",split_accomodation)
                 
                 "----------------------------------------------------------------------------------------------"
                 # Get data Row Based on the form Tag.
                 matched_rows=map_obj.find_tags_values(AllCsvData,split_accomodation)             
-                # print("matched_rows==========================>>",matched_rows)
+                # print("matched_rows==========================>>",len(matched_rows),matched_rows)
                 netAnd_GROSS=self.netANDgross_Value(matched_rows,numberOfTravellers)            # Get value trip value for client and person
                 
                 itinerary_dict["lead_client_name"]=lead_client_name
@@ -1262,13 +1257,14 @@ class FRameItinerary(APIView):
 
             StartingPointList=["Valletta","Senglea", "St Julians"] 
             VendorTimeVistHour={}
-            Locationslist=[]
-            
+            Locationslist=["Malta"]
+            # Locationslist=[]
+            VendorTimeVistHour["Hilton Hotel","00:00"]="00:00"
+          
             for data_dict in matched_rows:
                 Vendors=data_dict.get("Vendor")  
                 time=data_dict.get("Time of Visit hours")      
                 Locationslist.append(data_dict.get("Location") )
-                # VendorTimeVistHour["Hilton(Malta)"]='None'
                 VendorTimeVistHour[Vendors, time]=time
             # get distance time between places     
             keys_list=list(VendorTimeVistHour.keys())
@@ -1276,10 +1272,13 @@ class FRameItinerary(APIView):
             TimeLoc=self.VendorToVendorTime(keys_list,Locationslist)
             # add time , location and vendor in this list.
             perdayresultItinerary=[]        
+            del Locationslist[0]
             for sublist, location,timeVist in zip(TimeLoc, Locationslist,ActivityVisitTime):
                 if str(timeVist) == "None" or timeVist.strip() == "" or timeVist == "0:00":
                     timeVist = "00:30"
+                    
                 for j in sublist:
+                    
                     perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist,j[4],j[5]])
             Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,
                         AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person)
@@ -1291,7 +1290,22 @@ class FRameItinerary(APIView):
                 return Response({"message":"Data Not Found"},status=status.HTTP_404_NOT_FOUND)
 
             
+      
+class GetFormDetails(APIView)      :
+    def get(self , request ,forma=None):
+        GetformId=request.data.get("form_id")
+        if not GetformId:
+            return Response({'Message':'Please Enter Form ID'}, status=status.HTTP_400_BAD_REQUEST,)
+
+        if not UserDetailGethringForm.objects.filter(id=GetformId).exists():
+                return Response({'Message':'Form ID not Exist'},status=status.HTTP_400_BAD_REQUEST,)
             
+        getdata=UserDetailGethringForm.objects.filter(id=GetformId).all().values()[0]
+        if getdata:
+            return Response({"Message":"Data Get SuccessFully","data":getdata},status=status.HTTP_200_OK)
+        else:
+            return Response({"Message":"Data Not Found"},status=status.HTTP_404_NOT_FOUND)
+
 class ChatDetailsByID(APIView):
     authentication_classes=[JWTAuthentication]
 

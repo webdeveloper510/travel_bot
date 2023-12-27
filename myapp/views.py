@@ -58,8 +58,8 @@ import spacy
 from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
-url="http://127.0.0.1:8000/static/media/"
-# url="http://16.170.254.147:8000/static/media/"
+# url="http://127.0.0.1:8000/static/media/"
+url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
 
 def get_tokens_for_user(user):  
@@ -921,6 +921,7 @@ class FRameItinerary(APIView):
                     count += 1
                 else:
                     final_data[key] = None
+        print("Itineary_dict==========>>>",Itineary_dict)
         return Itineary_dict
     
     # function for sort the array 

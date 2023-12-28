@@ -381,26 +381,7 @@ class Prediction(APIView):
 
         return mode_results
 
-    
-    # chatgpt function
-    def get_completion(self,dataframe,userInput):
-        openai.api_key =OPENAI_KEY
-        postPrompt = (
-        "Using the provided data, generate a response with relevant information. "
-        "When referring to monetary amounts, please use the EURO sign (€) instead of English. "
-        "For example, instead of '60 EURO', write '€60'follow this currency format. "
-        "Ensure that responses are accurate, and if the necessary data is not available, provide an appropriate response."
-         )
-        prompt = f"{userInput} {postPrompt}\n\nData:\n{dataframe}"
-        messages = [{"role": "user", "content": prompt}]
-        response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        temperature=0,
-        )
-        result= response.choices[0].message["content"]
-        return result
-    
+ 
     # def generate_itinerary(data):
     def generate_response(self, data, idx,start=1):
         response_template = Template("""                                                  
@@ -921,7 +902,6 @@ class FRameItinerary(APIView):
                     count += 1
                 else:
                     final_data[key] = None
-        print("Itineary_dict==========>>>",Itineary_dict)
         return Itineary_dict
     
     # function for sort the array 
@@ -982,6 +962,8 @@ class FRameItinerary(APIView):
             if isinstance(OptimizeVendor, dict):
                 OptimizeVendorList.append([OptimizeVendor])
         optimizeValues = [[{'lat': float(cordinates.split(',')[0]),'lng': float(cordinates.split(',')[1])} for cordinates in optimizeVendor.values()] for optimizeVendorList in OptimizeVendorList for optimizeVendor in optimizeVendorList ]
+        
+        # Sort the array based on the distance from hotel to another locations.
         for data in days:
             for val in optimizeValues:
                 response=self.getist(data , val)
@@ -1005,13 +987,10 @@ class FRameItinerary(APIView):
             if found_lunch:
                 if 'arrivalTime' in data:
                     data['arrivalTime'] = (datetime.strptime(data['arrivalTime'], '%H:%M:%S') + timedelta(hours=1 ,minutes=30)).strftime('%H:%M:%S')
+                if "departTime" in data:
+                    data['departTime'] = (datetime.strptime(data['departTime'], '%H:%M:%S') + timedelta(hours=1 ,minutes=30)).strftime('%H:%M:%S')
             if data.get('Vendor') == 'Lunch':
                 found_lunch = True
-        lunchRowIndex = [idx for idx, data in enumerate(data_list) if data.get('Vendor') == 'Lunch']
-        getDepartArray = [data_list[i + 2] for i in lunchRowIndex if i + 2 < len(data_list)]
-        for depart in getDepartArray:
-            if "departTime" in depart:
-                depart['departTime'] = (datetime.strptime(depart['departTime'], '%H:%M:%S') + timedelta(hours=1 ,minutes=30)).strftime('%H:%M:%S')
         return data_list
       
    # 11. Function for Chnage timedelta to string
@@ -1033,10 +1012,8 @@ class FRameItinerary(APIView):
         lunchTimeObjec = datetime.strptime(lunch_time, '%H:%M')
         lunch=lunchTimeObjec.strftime("%H:%M:%S")
         DepartArrivalListVendorList = [entry.get('Vendor') for entry in DepartArrivalList]
-        window_before_lunch =lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=15)
-        window_after_lunch=lunchTimeObjec-datetime(1900,1,1)+timedelta(minutes=15)
-
-        # convert into string
+        window_before_lunch =lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=20)
+        window_after_lunch=lunchTimeObjec-datetime(1900,1,1)+timedelta(minutes=20)
 
         window_before_lunch =self.format_timedelta_to_HHMMSS(window_before_lunch)
         window_after_lunch=self.format_timedelta_to_HHMMSS(window_after_lunch)
@@ -1050,22 +1027,17 @@ class FRameItinerary(APIView):
                 SumOfArriveAndVisitTime = ArriveTime -datetime(1900,1,1)+ VisitTime-datetime(1900,1,1)
                 SumOfArriveAndVisitTime=self.format_timedelta_to_HHMMSS(SumOfArriveAndVisitTime)
                 if window_before_lunch <= SumOfArriveAndVisitTime <= window_after_lunch:
-                    DepartArrivalList.insert(idx, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
+                    DepartArrivalList.insert(idx+1, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
                     break
                 elif SumOfArriveAndVisitTime > window_before_lunch:
-                    DepartArrivalList.insert(idx, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
+                    DepartArrivalList.insert(idx+1, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
                     break
-                
-                
-        # Calculate departime for vendor to restaurants
-        vendor = [i - 1 for i, entry in enumerate(DepartArrivalList) if entry.get("Vendor") == "Lunch"]
-        getArray = [DepartArrivalList[i] for i in vendor] 
-        for dict in getArray:
-            departTime = dict.get("departTime")
-            travelTime = dict.get("travelTime")
-            SumOfDepartTravel =self.addTime(departTime, travelTime)
-            DepartArrivalList.insert(vendor[0] + 1, {"departTime": SumOfDepartTravel, "destinationLocation": "Restaurant"})
+        getlastRoe=DepartArrivalList[-1]
+        SumOfDepartTravel =self.addTime(getlastRoe.get("arrivalTime") ,getlastRoe.get("visitTime"))
+        if SumOfDepartTravel:
+            DepartArrivalList.append({"departTime":SumOfDepartTravel ,"destinationLocation":"Hotel"})
         updatedDepartArrivalList=self.add_one_hour_after_lunch(DepartArrivalList)
+        print("DepartArrivalList===========>>",DepartArrivalList)
         return updatedDepartArrivalList
     
     # 13. Make Vendor and Depart data list
@@ -1079,7 +1051,6 @@ class FRameItinerary(APIView):
         finalList = []
         index = 0
         arrivedVendor = ""
-        
         for k in range(len(data)):
             duration_parts = data[k][1].split()
             duration_minutes = int(duration_parts[0])
@@ -1091,7 +1062,6 @@ class FRameItinerary(APIView):
             map_distance_timedelta = datetime.strptime(GoogleMApTime, "%H:%M:%S") - datetime(1900, 1, 1, 0, 0)
             
             departedVendor = data[k][2]
-            print("departedVendor============>>>",departedVendor,)
             visitTime = datetime.strptime(data[k][3]+":00", "%H:%M:%S") 
 
             if index %2 == 0:
@@ -1281,6 +1251,7 @@ class FRameItinerary(APIView):
                 for j in sublist:
                     
                     perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist,j[4],j[5]])
+                    
             Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,
                         AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person)
             
@@ -1292,8 +1263,9 @@ class FRameItinerary(APIView):
 
             
       
-class GetFormDetails(APIView)      :
-    def get(self , request ,forma=None):
+class GetFormDetails(APIView):
+    authentication_classes=[JWTAuthentication]
+    def post(self , request ,format=None):
         GetformId=request.data.get("form_id")
         if not GetformId:
             return Response({'Message':'Please Enter Form ID'}, status=status.HTTP_400_BAD_REQUEST,)

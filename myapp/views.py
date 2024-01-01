@@ -885,16 +885,17 @@ class FRameItinerary(APIView):
         tour_start_datetime = datetime.strptime(TourStart_time, "%H:%M")
         startTime = tour_start_datetime.strftime("%H:%M:%S")
         PerDayActivity=self.DivideDataPerDAyTour(perdayresultItinerary,totalDays,numberofHours,startTime)      # divide list per days itinerary list
+        # print("PerDayActivity===============>",len(PerDayActivity), PerDayActivity)
         current_value=startTime
         lunchPrefred=datetime.strptime(lunch_time,"%H:%M")
         lunchPrefredObject=lunchPrefred.strftime("%H:%M:%S")
         SortedDepartList=[]
         for subNewLis in PerDayActivity:
-            # Assuming starttime and cumulative_time are initialized appropriately for each set of activities
             DepartArrivalList=self.MakevendorDict(subNewLis, startTime,lunch_time)
             lunchEntryDictionary=self.LunchEntry(lunch_time , DepartArrivalList)
             SortedDepartList.append(lunchEntryDictionary)
         count = 0
+        SortedDepartList = sorted(SortedDepartList, key=len, reverse=True)
         for final_data in tourDescriptionvalues:
             for key, val in final_data.items():
                 if count <len(SortedDepartList):
@@ -939,23 +940,24 @@ class FRameItinerary(APIView):
             sum_time_current_row = (map_distance_timedelta + visitTime - datetime(1900, 1, 1))
             current_datetime = tourstart + cumulative_time
             
-            
             # Convert tour_end_time - timedelta(minutes=15) to datetime object
             tour_end_datetime = tour_end_time - timedelta(minutes=15)
             if current_datetime.strftime("%H:%M:%S") <= self.format_timedelta_to_HHMMSS(tour_end_datetime):
                 cumulative_time += sum_time_current_row
                 updated_start_time = (tourstart + cumulative_time).strftime("%H:%M:%S")
                 if updated_start_time <=self.format_timedelta_to_HHMMSS(tour_end_datetime):
-                    current_day_data.append(data)
+                    if data not in current_day_data:
+                        current_day_data.append(data)
                 else:
                     cumulative_time = timedelta()
                     days.append(current_day_data)  
                     current_day_data = []
-           
-        print()   
         if current_day_data:
-            days.append(current_day_data)
+            if current_day_data not in days:
+                days.append(current_day_data)
         OptimizeVendorList=[]
+        
+        # sort the vendor based on the far distance from hotel.
         for lstdata in days:
             daysCordinates=[f"{lst[4]['lat']},{lst[4]['lng']}" for lst in lstdata]
             OptimizeVendor=generate_itinerary(api_key, daysCordinates, num_days=len(daysCordinates))
@@ -1009,35 +1011,95 @@ class FRameItinerary(APIView):
     
     # 12.function for enter the lunch
     def LunchEntry(self,lunch_time , DepartArrivalList):
+        
+        lunchVendor="Lunch"
         lunchTimeObjec = datetime.strptime(lunch_time, '%H:%M')
         lunch=lunchTimeObjec.strftime("%H:%M:%S")
-        DepartArrivalListVendorList = [entry.get('Vendor') for entry in DepartArrivalList]
+    
         window_before_lunch =lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=20)
         window_after_lunch=lunchTimeObjec-datetime(1900,1,1)+timedelta(minutes=20)
-
         window_before_lunch =self.format_timedelta_to_HHMMSS(window_before_lunch)
         window_after_lunch=self.format_timedelta_to_HHMMSS(window_after_lunch)
+        
+        # Add Lunch in Departarrive list when selected 6 and 8 hour tour per day
         for idx,entry in enumerate(DepartArrivalList):
             ArriveTime=entry.get("arrivalTime")
             VisitTime=entry.get("visitTime")
-       
             if ArriveTime is not None and VisitTime is not None:
                 ArriveTime=datetime.strptime(ArriveTime,"%H:%M:%S")
                 VisitTime=datetime.strptime(VisitTime,"%H:%M:%S")
                 SumOfArriveAndVisitTime = ArriveTime -datetime(1900,1,1)+ VisitTime-datetime(1900,1,1)
                 SumOfArriveAndVisitTime=self.format_timedelta_to_HHMMSS(SumOfArriveAndVisitTime)
-                if window_before_lunch <= SumOfArriveAndVisitTime <= window_after_lunch:
+                
+                # check if SumOfArriveAndVisitTime exist between 20 mint up and down from lunch time
+                if window_before_lunch <= SumOfArriveAndVisitTime <= window_after_lunch:     
+                    print("if condition is running ")
                     DepartArrivalList.insert(idx+1, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
                     break
                 elif SumOfArriveAndVisitTime > window_before_lunch:
+                    print("elif condtion is not running")
                     DepartArrivalList.insert(idx+1, {"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
                     break
+           
+        # add lunch when cleint select 4 hour tour per day.
+        if all(data.get("Vendor") != lunchVendor for data in DepartArrivalList):
+            getlastRow = DepartArrivalList[-1]
+            SumOfDepartTravel = self.addTime(getlastRow.get("arrivalTime"), getlastRow.get("visitTime"))
+            if SumOfDepartTravel <= lunch:
+                DepartArrivalList.append({"arrivalTime": lunch, "Vendor": "Lunch", "arrivedVendor": "Lunch Break"})
+        # append a dictionary for depart in Resaturants
+        
+        # get Lunch rows and its first row from  the lunch row
+        lunch_index = None
+        previous_row = None
+        for idx , row in enumerate(DepartArrivalList):
+            if row.get("Vendor")==lunchVendor:
+                lunch_index=idx
+                previous_index = idx - 1 if idx > 0 else None
+                if previous_index is not None:
+                    previous_row = DepartArrivalList[previous_index]
+                break
+        if previous_row:
+            AddTime =self.addTime(previous_row.get("arrivalTime") ,previous_row.get("visitTime"))
+            DepartLunch=lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=10)
+            if AddTime <= self.format_timedelta_to_HHMMSS(DepartLunch):
+                DepartArrivalList.insert(lunch_index ,{"departTime":AddTime ,"destinationLocation":"Restaurant"})
+       
+    
+        # Add Departure Dictionary for Hotel  
         getlastRoe=DepartArrivalList[-1]
         SumOfDepartTravel =self.addTime(getlastRoe.get("arrivalTime") ,getlastRoe.get("visitTime"))
+        
+        # If condtion is working for 6 and 8 hour data
         if SumOfDepartTravel:
             DepartArrivalList.append({"departTime":SumOfDepartTravel ,"destinationLocation":"Hotel"})
-        updatedDepartArrivalList=self.add_one_hour_after_lunch(DepartArrivalList)
-        print("DepartArrivalList===========>>",DepartArrivalList)
+            updatedDepartArrivalList=self.add_one_hour_after_lunch(DepartArrivalList)
+            
+        # else condition working for 4 hour data
+        else:
+            lunchshift30mint =lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=30)
+            lunchshiftonehour =lunchTimeObjec-datetime(1900,1,1)-timedelta(hours=1)
+            lunchshift30mint =self.format_timedelta_to_HHMMSS(lunchshift30mint)
+            lunchshiftonehour =self.format_timedelta_to_HHMMSS(lunchshiftonehour)
+            DepartAddTime=self.addTime(previous_row.get("arrivalTime") ,previous_row.get("visitTime"))
+            if DepartAddTime >= lunchshift30mint:
+                returntime =lunchTimeObjec-datetime(1900,1,1) +timedelta(minutes=50)
+                returntime =self.format_timedelta_to_HHMMSS(returntime)
+                DepartArrivalList.append({"departTime":returntime ,"destinationLocation":"Hotel"})
+                updatedDepartArrivalList=DepartArrivalList
+            
+            else:
+                lunchshift15mint =lunchTimeObjec-datetime(1900,1,1)-timedelta(minutes=15)
+                lunchshift15mint =self.format_timedelta_to_HHMMSS(lunchshift15mint)
+                returnhotel = datetime.strptime(lunchshift15mint, "%H:%M:%S")
+                returnhotel += timedelta(hours=1)
+                returnhotel = returnhotel.strftime("%H:%M:%S")
+                if lunchshiftonehour <= DepartAddTime <= lunchshift30mint:
+                    for data in DepartArrivalList:
+                        if data.get("Vendor") == lunchVendor:
+                            data['arrivalTime'] = lunchshift15mint
+                DepartArrivalList.append({"departTime":returnhotel ,"destinationLocation":"Hotel"})
+                updatedDepartArrivalList = DepartArrivalList  
         return updatedDepartArrivalList
     
     # 13. Make Vendor and Depart data list

@@ -77,16 +77,19 @@ def generate_itinerary(api_key, locations, num_days):
     return PerDayLocationDict
 
 # Example usage with latitude and longitude coordinates:
-api_key = ''  # Replace with your actual API key
-locations = [
-    '35.9223341,14.4863325',  # hotel
-    '35.82969606539233,14.441795580880497',  # haqar kim
-    '35.87100627260113,14.507424579408363',  # hyo=pogeum
-    '35.84172667416176,14.54411242364746',  # Marsaxlokk
-    '35.83656231679167,14.524218184171236'  # Ghar Dalam
-]
+# api_key = ''  # Replace with your actual API key
+# locations = [
+#     '35.9223341,14.4863325',  # hotel
+#     '35.82969606539233,14.441795580880497',  # haqar kim
+#     '35.87100627260113,14.507424579408363',  # hyo=pogeum
+#     '35.84172667416176,14.54411242364746',  # Marsaxlokk
+#     '35.83656231679167,14.524218184171236'  # Ghar Dalam
+# ]
 
 # Set the number of days (you may adjust as needed)
-num_days = len(locations)
-ans=generate_itinerary(api_key, locations, num_days)
+# num_days = len(locations)
+# ans=generate_itinerary(api_key, locations, num_days)
+
+
+
 

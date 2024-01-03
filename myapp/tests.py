@@ -86,7 +86,7 @@ def generate_itinerary(api_key, locations, num_days):
 #     '35.83656231679167,14.524218184171236'  # Ghar Dalam
 # ]
 
-# Set the number of days (you may adjust as needed)
+# # Set the number of days (you may adjust as needed)
 # num_days = len(locations)
 # ans=generate_itinerary(api_key, locations, num_days)
 

@@ -58,8 +58,8 @@ import spacy
 from django.db.models import Q
 nlp=spacy.load("en_core_web_sm")
 from bs4 import BeautifulSoup
-# url="http://127.0.0.1:8000/static/media/"
-url="http://16.170.254.147:8000/static/media/"
+url="http://127.0.0.1:8000/static/media/"
+# url="http://16.170.254.147:8000/static/media/"
 # Create your views\ here.
 
 def get_tokens_for_user(user):  
@@ -860,14 +860,12 @@ class FRameItinerary(APIView):
                         entry['destinationLocation'] = None
         return data
     # 8 . Main Function for Create Dictionary to generate Dictionary    (Use In 'Post' Function)
-    def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person):
+    def DictOfAllItineraryDAta(self,lead_client_name,datesOfTravel,numberOfTour,nationality,AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person,matched_rows,numberOfTravellers):
         StartTourKey = False
         Itineary_dict = {}
         Itineary_dict["Lead Client Name"]=lead_client_name
         Itineary_dict["Dates of Travel"]=datesOfTravel
         Itineary_dict["Tour Number"]=numberOfTour
-        Itineary_dict["NET Value of trip to the Agent"]=net_tripAgent
-        Itineary_dict["Gross Value of the trip to the Client"]=Gross_tripClient
         Itineary_dict["Nationality"]=nationality
         Itineary_dict["Days"]=AllTripDays
         Itineary_dict["Flight Arrival"]=[AllTripDays[0],f"{flightArrivalTime} - Arrival at Malta International Airport on {flightArrivalNumber} and privately transfer to the hotel"]
@@ -875,7 +873,7 @@ class FRameItinerary(APIView):
        
         arrival_datetime = datetime.strptime(flightArrivalTime, "%H:%M")
         # Check if the arrival time is before 12:00 PM
-        if arrival_datetime.time() < datetime.strptime("12:00", "%H:%M").time():
+        if arrival_datetime.time() < datetime.strptime("08:00", "%H:%M").time():
             StartTourKey = True
         else:
             StartTourKey = False
@@ -891,6 +889,7 @@ class FRameItinerary(APIView):
             del AllTripDays[0]
             for days in AllTripDays:
                 Itineary_dict["Tour Description"].append({days:[]})
+     
         numberofHours = int(re.search(r'\d+', malta_experience).group())    
         tourDescriptionvalues=Itineary_dict.get('Tour Description')
         totalDays=len(tourDescriptionvalues)
@@ -898,7 +897,6 @@ class FRameItinerary(APIView):
         tour_start_datetime = datetime.strptime(TourStart_time, "%H:%M")
         startTime = tour_start_datetime.strftime("%H:%M:%S")
         PerDayActivity=self.DivideDataPerDAyTour(perdayresultItinerary,totalDays,numberofHours,startTime)      # divide list per days itinerary list
-        # print("PerDayActivity===============>",len(PerDayActivity), PerDayActivity)
         current_value=startTime
         lunchPrefred=datetime.strptime(lunch_time,"%H:%M")
         lunchPrefredObject=lunchPrefred.strftime("%H:%M:%S")
@@ -911,7 +909,15 @@ class FRameItinerary(APIView):
         
         # Sort list Based on the length of lists max length comes first.
         SortedDepartList = sorted(SortedDepartList, key=len, reverse=True)
-        SortedDepartList=  self.update_destination_locations(SortedDepartList)      ### function for change same location to none
+        SortedDepartList= self.update_destination_locations(SortedDepartList)      ### function for change same location to none
+        
+        FinalAnswerList=[ SortedDepartList[i] for i in range(0 , len(tourDescriptionvalues))]
+        checkVendor =[vendor.get("arrivedVendor").replace("-", " ") for data in FinalAnswerList for vendor in data if vendor.get("arrivedVendor") is not None]
+        matchedRows=[rows for rows in matched_rows for vendor in checkVendor  if vendor.strip() == rows.get('Vendor', '')]
+        netAnd_GROSS=self.netANDgross_Value(matchedRows,numberOfTravellers)   
+        
+        Itineary_dict["NET Value of trip to the Agent"]=f"€{netAnd_GROSS[0]}"      
+        Itineary_dict["Gross Value of the trip to the Client"]=f"€{netAnd_GROSS[1]}"
         for final_data in tourDescriptionvalues:
             for key, val in final_data.items():
                 if count <len(SortedDepartList):
@@ -920,6 +926,7 @@ class FRameItinerary(APIView):
                 else:
                     final_data[key] = None
         Itineary_dict["AdditionalInfo"]="This itinerary is just a suggestion, and you can modify it based on your preferences and the time you have available. Always check the opening hours of attractions and plan accordingly. Additionally, consider the current travel guidelines and restrictions that may be in place due to unforeseen circumstances, such as the ongoing global situation."
+        
         return Itineary_dict
     
     # function for sort the array 
@@ -1311,28 +1318,19 @@ class FRameItinerary(APIView):
                 # code for get row based on the tag
                 tag_accomodation_value=form_data.get("accommodation_specific").lower()        
                 split_accomodation=re.split("[&/,]| or",tag_accomodation_value)
-                
                 "----------------------------------------------------------------------------------------------"
                 # Get data Row Based on the form Tag.
                 matched_rows=map_obj.find_tags_values(AllCsvData,split_accomodation)             
-                # print("matched_rows==========================>>",len(matched_rows),matched_rows)
-                netAnd_GROSS=self.netANDgross_Value(matched_rows,numberOfTravellers)            # Get value trip value for client and person
                 
                 itinerary_dict["lead_client_name"]=lead_client_name
                 itinerary_dict["datesOfTravel"]=datesOfTravel  
                 itinerary_dict["numberOfTour"]=numberOfTour
                 itinerary_dict["numberOfTravellers"]=numberOfTravellers
-                itinerary_dict["Net Trip Value Agent"]=f"€{netAnd_GROSS[0]}"      
-                itinerary_dict["Gross Trip Value Client"]=f"€{netAnd_GROSS[1]}"
-              
-                
                 # # 1. find Total days , date , month 
                 total_days_dict=self.GetDaysFromDate(date_striing)
                 itinerary_dict.update(total_days_dict)
 
             # get net and gross value
-            net_tripAgent=itinerary_dict.get("Net Trip Value Agent")
-            Gross_tripClient=itinerary_dict.get("Gross Trip Value Client")
             TourTotalDays=itinerary_dict.get("Total Days")
             # print("matched rows",matched_rows, len(matched_rows))
             # get list of all trip days
@@ -1361,8 +1359,8 @@ class FRameItinerary(APIView):
                     timeVist = "00:30"
                 for j in sublist:
                     perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist,j[4],j[5]])
-            Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,
-                        AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person)
+            Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,nationality,
+                        AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person,matched_rows,numberOfTravellers)
             Framed_response=self.GenerateItineraryResponse(Gotitinerary_dict)
             if Framed_response:
                 return Response({'data': Framed_response , "message":"success"},status=status.HTTP_200_OK)

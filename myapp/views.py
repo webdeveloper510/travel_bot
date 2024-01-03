@@ -610,20 +610,16 @@ class Prediction(APIView):
                             return Response({"Answer":"Data Not Found"},status=status.HTTP_400_BAD_REQUEST)
             else:
                 itenary_answer
-                
                 # Use code for Google maps
                 if Google_intent_find:
                     map_rslt_list=self.find_distance_time_locations(dictionary_list , split_user_query)
                     if map_rslt_list:
-                        print("map_rslt_list=================>>>",map_rslt_list)
                         itenary_answer1= [self.generate_response(d_dict, idx4) for idx4, d_dict in enumerate(map_rslt_list)]
                         itenary_answer=itenary_answer+itenary_answer1
                     else:
                         return itenary_answer
-                
                 else:
                     itenary_answer
-                    
                     
             for ans in itenary_answer:
                 extractor.load_document(input=ans, language='en')
@@ -712,15 +708,15 @@ class UserInfoGethring(APIView):
                     numberOfTravellers=NumberOfTravellers,
                     agesOfTravellers=AgesOfTravellers,
                     select_budget=BudgetSelect,
-                    flightArrivalTime=FlightArrivalTime,
+                    flightArrivalTime=datetime.strptime(FlightArrivalTime, "%H:%M").strftime("%I:%M %p"),
                     flightArrivalNumber=FlightArrivalNumber,
-                    flightDepartureTime=FlightDepartureTime,
+                    flightDepartureTime=datetime.strptime(FlightDepartureTime, "%H:%M").strftime("%I:%M %p"),
                     flightDepartureNumber=FlightDepartureNumber,
                     accommodation_specific=AccommodationSpecific,
                     malta_experience=MaltaExperience,
-                    start_time=StartTime,
-                    lunch_time=LunchTime,
-                    dinner_time=DinnerTime,
+                    start_time= datetime.strptime(StartTime, "%H:%M").strftime("%I:%M %p"),
+                    lunch_time=datetime.strptime(LunchTime, "%H:%M").strftime("%I:%M %p"),
+                    dinner_time=datetime.strptime(DinnerTime, "%H:%M").strftime("%I:%M %p"),
                     issues_n_phobias=IssuesNPhobias,
                     other_details=OtherDetails
                 )
@@ -912,7 +908,6 @@ class FRameItinerary(APIView):
         # Sort list Based on the length of lists max length comes first.
         SortedDepartList = sorted(SortedDepartList, key=len, reverse=True)
         SortedDepartList=  self.update_destination_locations(SortedDepartList)      ### function for change same location to none
-        print("SortedDepartList=================================>>>",SortedDepartList)
         for final_data in tourDescriptionvalues:
             for key, val in final_data.items():
                 if count <len(SortedDepartList):
@@ -920,6 +915,7 @@ class FRameItinerary(APIView):
                     count += 1
                 else:
                     final_data[key] = None
+        Itineary_dict["AdditionalInfo"]="This itinerary is just a suggestion, and you can modify it based on your preferences and the time you have available. Always check the opening hours of attractions and plan accordingly. Additionally, consider the current travel guidelines and restrictions that may be in place due to unforeseen circumstances, such as the ongoing global situation."
         return Itineary_dict
     
     # function for sort the array 
@@ -1186,53 +1182,63 @@ class FRameItinerary(APIView):
                 departTime = arrivalTime -  datetime(1900,1,1) + visitTime -  datetime(1900,1,1)
                 departTime = self.format_timedelta_to_HHMMSS(departTime)
             index += 1
+            
+        # print('finallist---------------------->>>>',finalList)
         return finalList
     
     # 14.  Generate Itinerary      (Use in " Post Function")
     def GenerateItineraryResponse(self , FramedItinerary):
         response_template=Template('''
-        <div>
-        <p> Lead Client Name: {{ FramedItinerary.get('Lead Client Name')|trim }}</p>
-        <p> Dates of Travel: {{ FramedItinerary.get('Dates of Travel')|trim }} </p>
-        <p> Tour Number: {{ FramedItinerary.get('Tour Number')|trim }}     </p>
-        <p> NET Value of trip to the agent: {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }} </p>
-        <p> Gross Value of the trip to the client: {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}</p>
-        <p> Vehicle to be used: {{ FramedItinerary.get('Vehicle to be used')|trim }}</p>
-        <p> Nationality: {{ FramedItinerary.get('Nationality')|trim }}</p>
-        <br>
-        <ul>
-        {% for key, value in FramedItinerary.items() %}
-            {% if key == "Flight Arrival" %}
-                <li><h4>{{ value[0]|trim }}:</h4> <br>{{ value[1]|trim }}</li>
-            {% elif key == "Tour Description" %}
-                {% for data in value %}
-                    {% for dates, description in data.items() %}
-                        <h4>{{ dates|trim }}</h4>
-                        {% if description != None %}
-                            {% if dates %}
-                                {% for entry in description %}
-                                    {% if "departTime"  in entry %}
-                                        {% if loop.first %}
-                                                <li>{{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}</li>
-                                        {% else %}
-                                            {% if entry.destinationLocation != None %}
-                                                <li>{{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}</li>
+    <div className="tour-discription">
+        <div className="discription">
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Lead Client Name:</b> {{ FramedItinerary.get('Lead Client Name')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Dates of Travel:</b> {{ FramedItinerary.get('Dates of Travel')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Tour Number:</b> {{ FramedItinerary.get('Tour Number')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>NET Value of trip to the agent:</b> {{ FramedItinerary.get('NET Value of trip to the Agent')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Gross Value of the trip to the client:</b> {{ FramedItinerary.get('Gross Value of the trip to the Client')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Vehicle to be used:</b> {{ FramedItinerary.get('Vehicle to be used')|trim }}</p>
+            <p className="d-content" style="font-family:sans-serif; font-size:18px"><b>Nationality:</b> {{ FramedItinerary.get('Nationality')|trim }}</p>
+            <br>
+            <div className="data-per-day">
+              <ul className="data">     
+                {% for key, value in FramedItinerary.items() %}
+                    {% if key == "Flight Arrival" %}
+                        <h5 className="Date-format" style="font-size: 20px; font-weight: 500; line-height: 50px">{{ value[0]|trim }}:</h5> 
+                        <p className="d-content" style="font-family:sans-serif; font-size:16px">{{ value[1]|trim }}</p>
+                    {% elif key == "Tour Description" %}
+                        {% for data in value %}
+                            {% for dates, description in data.items() %}
+                                <h5 className="Date-format" style="font-size: 20px; font-weight: 500; line-height: 50px">{{ dates|trim }}</h5>
+                                {% if description != None %}
+                                    {% if dates %}
+                                        {% for entry in description %}
+                                            {% if "departTime" in entry %}
+                                                {% if loop.first %}
+                                                    <li className="data-per-date" style="font-size: 16px; font-family: sans-serif; line-height: 30px">{{ entry.departTime }} : {{ "Depart with local guide and driver for " ~ entry.destinationLocation }}</li>
+                                                {% else %}
+                                                    {% if entry.destinationLocation != None %}
+                                                    <li className="data-per-date" style="font-size: 16px; font-family: sans-serif; line-height: 30px">{{ entry.departTime }} : {{ "Depart for " ~ entry.destinationLocation }}</li>
+                                                    {% endif %}
+                                                {% endif %}
+                                            {% elif "arrivalTime" in entry %}
+                                                    <li className="data-per-date" style="font-size: 16px; font-family: sans-serif; line-height: 30px">{{ entry.arrivalTime }} : {{ entry.arrivedVendor }}</li>
                                             {% endif %}
-                                        {% endif %}
-                                    {% elif "arrivalTime" in entry %}
-                                                <li>{{ entry.arrivalTime }} : {{ entry.arrivedVendor }}</li>
+                                        {% endfor %}
                                     {% endif %}
-                                {% endfor %}
-                            {% endif %}
-                        {% elif description == None %}
-                            <p>{{description}}</p>
-                        {% endif %}
-                    {% endfor %}
+                                {% elif description == None %}
+                                    <p className="d-content" style="font-family:sans-serif, font-size:16px">{{ description }}</p>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    {% endif %}
                 {% endfor %}
-            {% endif %}
-        {% endfor %}
-        </ul>
+              </ul>
+            </div>
         </div>
+        <h4 style ="font-size: 20px; font-weight: 500; line-height: 50px, font-family:sans-serif"><b>Note :</b> </h4>
+        <p className="d-content" style="font-family:sans-serif; font-size:18px">{{ FramedItinerary.get('AdditionalInfo')|trim  }}</p> 
+    </div>
+
         ''')
         response = response_template.render(FramedItinerary=FramedItinerary)
         print("response=========>>",response)
@@ -1287,14 +1293,14 @@ class FRameItinerary(APIView):
                 datesOfTravel=self.DatesOfTravel(date_striing)                      # only for heading tag
                 numberOfTour=form_data.get('numberOfTour')                          # Tour NUmber
                 nationality=form_data.get("nationality")
-                numberOfTravellers=form_data.get('numberOfTravellers')              # Number of Person
-                TourStart_time=form_data.get("start_time")                              # Tour start time
-                lunch_time=form_data.get("lunch_time")                              # lunch_time
-                dinner_time=form_data.get("dinner_time")                            # dinner_time
+                numberOfTravellers=form_data.get('numberOfTravellers')            
+                TourStart_time = datetime.strptime(form_data.get("start_time"), "%I:%M %p").strftime("%H:%M")
+                lunch_time = datetime.strptime(form_data.get("lunch_time"), "%I:%M %p").strftime("%H:%M")
+                dinner_time = datetime.strptime(form_data.get("dinner_time") , "%I:%M %p").strftime("%H:%M")
+                flightArrivalTime = datetime.strptime(form_data.get("flightArrivalTime"), "%I:%M %p").strftime("%H:%M")
                 malta_experience=form_data.get("malta_experience")                  # malta_experience
-                flightArrivalTime=form_data.get("flightArrivalTime")
                 flightArrivalNumber=form_data.get("flightArrivalNumber")
-                
+
                 get_vehicle_person=self.VehicleProvide(numberOfTravellers)          # Provide vehicle based on the person.
               
                 # code for get row based on the tag
@@ -1348,21 +1354,15 @@ class FRameItinerary(APIView):
             for sublist, location,timeVist in zip(TimeLoc, Locationslist,ActivityVisitTime):
                 if str(timeVist) == "None" or timeVist.strip() == "" or timeVist == "0:00":
                     timeVist = "00:30"
-                    
                 for j in sublist:
-                    
                     perdayresultItinerary.append([j[1].split("(")[0], j[2], location,timeVist,j[4],j[5]])
-                    
             Gotitinerary_dict=self.DictOfAllItineraryDAta(lead_client_name,datesOfTravel,numberOfTour,net_tripAgent,Gross_tripClient,nationality,
                         AllTripDays,flightArrivalTime,flightArrivalNumber,TourStart_time,lunch_time,perdayresultItinerary,TourTotalDays, malta_experience,get_vehicle_person)
-            
             Framed_response=self.GenerateItineraryResponse(Gotitinerary_dict)
             if Framed_response:
                 return Response({'data': Framed_response , "message":"success"},status=status.HTTP_200_OK)
             else:
                 return Response({"message":"Data Not Found"},status=status.HTTP_404_NOT_FOUND)
-
-            
       
 class GetFormDetails(APIView):
     authentication_classes=[JWTAuthentication]
